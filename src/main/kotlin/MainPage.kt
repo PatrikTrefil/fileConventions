@@ -24,9 +24,6 @@ private const val headingCssClass = "heading"
 private const val errorTextFieldCssClass = "error-text-field"
 private const val errorLabelCssClass = "error-label"
 
-// TODO: upload to github
-// TODO: setup CI with gradlew run, test and ktfmtFormat
-
 // TODO: refactor - split the start function
 
 class Rule(
