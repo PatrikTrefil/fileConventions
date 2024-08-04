@@ -1,6 +1,5 @@
 package com.patriktrefil
 
-import java.io.File
 import javafx.application.Application
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
@@ -9,20 +8,20 @@ import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Scene
 import javafx.scene.control.*
-import javafx.scene.layout.ColumnConstraints
-import javafx.scene.layout.GridPane
-import javafx.scene.layout.HBox
-import javafx.scene.layout.Priority
-import javafx.scene.layout.VBox
+import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
 import javafx.util.Callback
+import javafx.event.EventHandler
+import javafx.scene.input.InputEvent
+import java.io.File
 
-private const val defaultWindowWidth = 640.0
+private const val defaultWindowWidth = 840.0
 private const val defaultWindowHeight = 480.0
 private const val headingCssClass = "heading"
 private const val errorTextFieldCssClass = "error-text-field"
 private const val errorLabelCssClass = "error-label"
+private const val vboxColStyleClass = "vbox-col"
 
 // TODO: refactor - split the start function
 
@@ -41,14 +40,21 @@ class MainPage : Application() {
   private val ruleList = FXCollections.observableArrayList<Rule>()
   private var directoryToMonitor = SimpleObjectProperty<File?>(null)
   private val directoryToMonitorChooser = DirectoryChooser()
+  private var selectedRule = SimpleObjectProperty<Rule?>(null)
 
   override fun start(stage: Stage) {
     val mainGrid = GridPane()
-    mainGrid.prefWidth = Double.POSITIVE_INFINITY
-    val constraints = ColumnConstraints()
-    constraints.hgrow = Priority.ALWAYS
-    mainGrid.columnConstraints.add(constraints)
-    mainGrid.columnConstraints.add(constraints)
+    mainGrid.padding = Insets(10.0)
+
+    val colConstraints = ColumnConstraints()
+    colConstraints.hgrow = Priority.ALWAYS
+    mainGrid.columnConstraints.add(colConstraints)
+    mainGrid.columnConstraints.add(colConstraints)
+    mainGrid.columnConstraints.add(colConstraints)
+
+    val rowConstraints = RowConstraints()
+    rowConstraints.vgrow = Priority.ALWAYS
+    mainGrid.rowConstraints.add(rowConstraints)
 
     val addRuleHeading = Label("New rule")
     addRuleHeading.styleClass.add(headingCssClass)
@@ -69,14 +75,16 @@ class MainPage : Application() {
     val directoryToMonitorLabel = Label("Directory to monitor")
     val directoryToMonitorOpenChooserButton =
         Button(
-            "Browse") // TODO: fix bug - when there is no directory selected and we click add rule -
+            "Browse")
     // this button loses padding for some reason
-    directoryToMonitorOpenChooserButton.setOnMouseClicked {
+    val actionHandler = EventHandler<InputEvent> {
       val newDirectoryToMonitor = directoryToMonitorChooser.showDialog(stage)
       if (newDirectoryToMonitor != null) {
         directoryToMonitor.value = newDirectoryToMonitor
       }
     }
+    directoryToMonitorOpenChooserButton.onKeyPressed = actionHandler
+    directoryToMonitorOpenChooserButton.onMouseClicked = actionHandler
     val directoryToMonitorValueLabel = Label()
     directoryToMonitorValueLabel
         .textProperty()
@@ -132,9 +140,7 @@ class MainPage : Application() {
     directoryToMonitorHBox.alignment = Pos.CENTER_LEFT
     directoryToMonitorHBox.spacing = 10.0
 
-    // TODO: add ability to show details of rules
     // TODO: add ability to edit rules
-    // TODO: add button to run the check manually
     // TODO: add time of last check
     // TODO: add list of detected issues in last check
     // TODO: show indicator if a check is currently running
@@ -157,17 +163,62 @@ class MainPage : Application() {
             VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
     contentVbox.spacing = 7.0
     val leftColVBox = VBox(contentVbox, addRuleBtn)
-    leftColVBox.styleClass.add("vbox-col")
+    leftColVBox.styleClass.add(vboxColStyleClass)
     leftColVBox.spacing = 20.0
     mainGrid.add(leftColVBox, 0, 0)
+
+    val ruleDetailsHeading = Label("Rule details")
+    ruleDetailsHeading.styleClass.add(headingCssClass)
+    val nameLabel = Label()
+    nameLabel.textProperty().bind(
+      Bindings.createStringBinding(
+        { "Name: ${selectedRule.value?.name}" },
+        selectedRule
+      ))
+    val regexValueLabel = Label()
+    regexValueLabel.textProperty().bind(
+      Bindings.createStringBinding(
+        { "Regex: ${selectedRule.value?.regex?.pattern}"},
+        selectedRule
+      ))
+    val isEnabledValueLabel = Label()
+    isEnabledValueLabel.textProperty().bind(
+      Bindings.createStringBinding(
+        { "Is enabled?: ${if (selectedRule.value?.isEnabled == true) "yes" else "no"}"},
+        selectedRule
+      ))
+    val timeBetweenChecksInMinuteValue = Label()
+    timeBetweenChecksInMinuteValue.textProperty().bind(
+      Bindings.createStringBinding(
+        {"Time between checks: ${selectedRule.value?.timeBetweenChecksInMinutes.toString()} mins"},
+        selectedRule
+      ))
+    val runCheckManuallyButton = Button("Run manually") // TODO: make this button work
+    val ruleDetailsContentVBox = VBox(nameLabel, regexValueLabel, isEnabledValueLabel, timeBetweenChecksInMinuteValue, runCheckManuallyButton)
+    ruleDetailsContentVBox.spacing = 5.0
+    val noRuleSelectedLabel = Label("No rule selected")
+    noRuleSelectedLabel.id = "no-rule-selected-label"
+    val noRuleSelectedVBox = VBox(noRuleSelectedLabel)
+    noRuleSelectedVBox.alignment = Pos.CENTER // Horizontal centering
+    VBox.setVgrow(noRuleSelectedVBox, Priority.ALWAYS)
+
+    val rightColVBox = VBox(ruleDetailsHeading, noRuleSelectedVBox)
+    rightColVBox.styleClass.add(vboxColStyleClass)
+    mainGrid.add(rightColVBox, 2, 0)
 
     val ruleListHeading = Label("Rule list")
     ruleListHeading.styleClass.add(headingCssClass)
     val ruleList = ListView(ruleList)
     ruleList.cellFactory = Callback { RuleListCell() }
-    val rightColVBox = VBox(ruleListHeading, ruleList)
-    rightColVBox.styleClass.add("vbox-col")
-    mainGrid.add(rightColVBox, 1, 0)
+      ruleList.setOnMouseClicked {
+        selectedRule.value = ruleList.selectionModel.selectedItem
+        rightColVBox.children[1] = ruleDetailsContentVBox
+      }
+    VBox.setVgrow(ruleList, Priority.ALWAYS)
+    val middleColVBox = VBox(ruleListHeading, ruleList)
+    middleColVBox.styleClass.add(vboxColStyleClass)
+    mainGrid.add(middleColVBox, 1, 0)
+
 
     val scene = Scene(mainGrid, defaultWindowWidth, defaultWindowHeight)
     scene.stylesheets.add("mainpage.css")
