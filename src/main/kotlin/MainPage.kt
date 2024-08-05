@@ -183,7 +183,7 @@ class MainPage : Application() {
       selectedRule.value = ruleList.selectionModel.selectedItem
       rightColVBox.children[1] =
           ruleDetailsContentVBox // HACK: to improve the quality of the code, the right column
-                                 // should probably be a custom component
+      // should probably be a custom component
     }
 
     VBox.setVgrow(ruleList, Priority.ALWAYS)
