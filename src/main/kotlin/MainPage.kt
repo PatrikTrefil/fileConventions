@@ -1,5 +1,6 @@
 package com.patriktrefil
 
+import java.io.File
 import javafx.application.Application
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
@@ -14,7 +15,6 @@ import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
 import javafx.util.Callback
-import java.io.File
 
 private const val defaultWindowWidth = 840.0
 private const val defaultWindowHeight = 480.0
@@ -82,24 +82,23 @@ class MainPage : Application() {
     }
 
     val directoryToMonitorLabel = Label("Directory to monitor")
-    val directoryToMonitorOpenChooserButton =
-      Button(
-        "Browse")
+    val directoryToMonitorOpenChooserButton = Button("Browse")
     // this button loses padding for some reason
-    val actionHandler = EventHandler<InputEvent> {
-      val newDirectoryToMonitor = directoryToMonitorChooser.showDialog(stage)
-      if (newDirectoryToMonitor != null) {
-        directoryToMonitor.value = newDirectoryToMonitor
-      }
-    }
+    val actionHandler =
+        EventHandler<InputEvent> {
+          val newDirectoryToMonitor = directoryToMonitorChooser.showDialog(stage)
+          if (newDirectoryToMonitor != null) {
+            directoryToMonitor.value = newDirectoryToMonitor
+          }
+        }
     directoryToMonitorOpenChooserButton.onKeyPressed = actionHandler
     directoryToMonitorOpenChooserButton.onMouseClicked = actionHandler
     val directoryToMonitorValueLabel = Label()
     directoryToMonitorValueLabel
-      .textProperty()
-      .bind(
-        Bindings.createStringBinding(
-          { directoryToMonitor.value?.name ?: "No directory selected" }, directoryToMonitor))
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                { directoryToMonitor.value?.name ?: "No directory selected" }, directoryToMonitor))
     directoryToMonitor.addListener { _, _, _ ->
       directoryToMonitorValueLabel.styleClass.remove(errorLabelCssClass)
     }
@@ -145,26 +144,26 @@ class MainPage : Application() {
     }
 
     val directoryToMonitorHBox =
-      HBox(directoryToMonitorOpenChooserButton, directoryToMonitorValueLabel)
+        HBox(directoryToMonitorOpenChooserButton, directoryToMonitorValueLabel)
     directoryToMonitorHBox.alignment = Pos.CENTER_LEFT
     directoryToMonitorHBox.spacing = 10.0
 
     val contentVbox =
-      VBox(
-        addRuleHeading,
         VBox(
-          ruleNameLabel,
-          ruleNameTextField,
-        ),
-        VBox(
-          regexLabel,
-          regexTextField,
-        ),
-        VBox(
-          directoryToMonitorLabel,
-          directoryToMonitorHBox,
-        ),
-        VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
+            addRuleHeading,
+            VBox(
+                ruleNameLabel,
+                ruleNameTextField,
+            ),
+            VBox(
+                regexLabel,
+                regexTextField,
+            ),
+            VBox(
+                directoryToMonitorLabel,
+                directoryToMonitorHBox,
+            ),
+            VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
     contentVbox.spacing = 7.0
     val leftColVBox = VBox(contentVbox, addRuleBtn)
     leftColVBox.styleClass.add(vboxColStyleClass)
@@ -182,7 +181,9 @@ class MainPage : Application() {
     val ruleDetailsContentVBox = createRuleDetailsContentVBox()
     ruleList.setOnMouseClicked {
       selectedRule.value = ruleList.selectionModel.selectedItem
-      rightColVBox.children[1] = ruleDetailsContentVBox // HACK: to improve the quality of the code, the right column should probably be a custom component
+      rightColVBox.children[1] =
+          ruleDetailsContentVBox // HACK: to improve the quality of the code, the right column
+                                 // should probably be a custom component
     }
 
     VBox.setVgrow(ruleList, Priority.ALWAYS)
@@ -193,35 +194,43 @@ class MainPage : Application() {
 
   private fun createRuleDetailsContentVBox(): VBox {
     val nameLabel = Label()
-    nameLabel.textProperty().bind(
-      Bindings.createStringBinding(
-        { "Name: ${selectedRule.value?.name}" },
-        selectedRule
-      ))
+    nameLabel
+        .textProperty()
+        .bind(Bindings.createStringBinding({ "Name: ${selectedRule.value?.name}" }, selectedRule))
 
     val regexValueLabel = Label()
-    regexValueLabel.textProperty().bind(
-      Bindings.createStringBinding(
-        { "Regex: ${selectedRule.value?.regex?.pattern}"},
-        selectedRule
-      ))
+    regexValueLabel
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                { "Regex: ${selectedRule.value?.regex?.pattern}" }, selectedRule))
 
     val isEnabledValueLabel = Label()
-    isEnabledValueLabel.textProperty().bind(
-      Bindings.createStringBinding(
-        { "Is enabled?: ${if (selectedRule.value?.isEnabled == true) "yes" else "no"}"},
-        selectedRule
-      ))
+    isEnabledValueLabel
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                { "Is enabled?: ${if (selectedRule.value?.isEnabled == true) "yes" else "no"}" },
+                selectedRule))
 
     val timeBetweenChecksInMinuteValue = Label()
-    timeBetweenChecksInMinuteValue.textProperty().bind(
-      Bindings.createStringBinding(
-        {"Time between checks: ${selectedRule.value?.timeBetweenChecksInMinutes.toString()} mins"},
-        selectedRule
-      ))
+    timeBetweenChecksInMinuteValue
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                {
+                  "Time between checks: ${selectedRule.value?.timeBetweenChecksInMinutes.toString()} mins"
+                },
+                selectedRule))
 
     val runCheckManuallyButton = Button("Run manually") // TODO: make this button work
-    val ruleDetailsContentVBox = VBox(nameLabel, regexValueLabel, isEnabledValueLabel, timeBetweenChecksInMinuteValue, runCheckManuallyButton)
+    val ruleDetailsContentVBox =
+        VBox(
+            nameLabel,
+            regexValueLabel,
+            isEnabledValueLabel,
+            timeBetweenChecksInMinuteValue,
+            runCheckManuallyButton)
     ruleDetailsContentVBox.spacing = 5.0
 
     return ruleDetailsContentVBox
