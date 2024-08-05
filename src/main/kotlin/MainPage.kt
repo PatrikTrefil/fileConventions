@@ -4,16 +4,16 @@ import javafx.application.Application
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
 import javafx.collections.FXCollections
+import javafx.event.EventHandler
 import javafx.geometry.Insets
 import javafx.geometry.Pos
 import javafx.scene.Scene
 import javafx.scene.control.*
+import javafx.scene.input.InputEvent
 import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
 import javafx.util.Callback
-import javafx.event.EventHandler
-import javafx.scene.input.InputEvent
 import java.io.File
 
 private const val defaultWindowWidth = 840.0
@@ -22,18 +22,6 @@ private const val headingCssClass = "heading"
 private const val errorTextFieldCssClass = "error-text-field"
 private const val errorLabelCssClass = "error-label"
 private const val vboxColStyleClass = "vbox-col"
-
-// TODO: refactor - split the start function
-
-class Rule(
-    val name: String,
-    val regex: Regex,
-    val isEnabled: Boolean,
-    val timeBetweenChecksInMinutes: Int
-) {
-  // TODO: when the instance is created - start periodic checks of rule (possibly using coroutines)
-  // TODO: when the rule is edited - rerun the check immediately
-}
 
 class MainPage : Application() {
   // TODO: rule list persistence
@@ -56,6 +44,27 @@ class MainPage : Application() {
     rowConstraints.vgrow = Priority.ALWAYS
     mainGrid.rowConstraints.add(rowConstraints)
 
+    // TODO: add ability to edit rules
+    // TODO: add time of last check
+    // TODO: add list of detected issues in last check
+    // TODO: show indicator if a check is currently running
+
+    mainGrid.add(createLeftColumn(stage), 0, 0)
+
+    val rightColVBox = createRightColumn()
+    mainGrid.add(rightColVBox, 2, 0)
+
+    mainGrid.add(createMiddleColumn(rightColVBox), 1, 0)
+
+    val scene = Scene(mainGrid, defaultWindowWidth, defaultWindowHeight)
+    scene.stylesheets.add("mainpage.css")
+
+    stage.title = "File conventions"
+    stage.scene = scene
+    stage.show()
+  }
+
+  private fun createLeftColumn(stage: Stage): VBox {
     val addRuleHeading = Label("New rule")
     addRuleHeading.styleClass.add(headingCssClass)
 
@@ -74,8 +83,8 @@ class MainPage : Application() {
 
     val directoryToMonitorLabel = Label("Directory to monitor")
     val directoryToMonitorOpenChooserButton =
-        Button(
-            "Browse")
+      Button(
+        "Browse")
     // this button loses padding for some reason
     val actionHandler = EventHandler<InputEvent> {
       val newDirectoryToMonitor = directoryToMonitorChooser.showDialog(stage)
@@ -87,10 +96,10 @@ class MainPage : Application() {
     directoryToMonitorOpenChooserButton.onMouseClicked = actionHandler
     val directoryToMonitorValueLabel = Label()
     directoryToMonitorValueLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                { directoryToMonitor.value?.name ?: "No directory selected" }, directoryToMonitor))
+      .textProperty()
+      .bind(
+        Bindings.createStringBinding(
+          { directoryToMonitor.value?.name ?: "No directory selected" }, directoryToMonitor))
     directoryToMonitor.addListener { _, _, _ ->
       directoryToMonitorValueLabel.styleClass.remove(errorLabelCssClass)
     }
@@ -136,66 +145,91 @@ class MainPage : Application() {
     }
 
     val directoryToMonitorHBox =
-        HBox(directoryToMonitorOpenChooserButton, directoryToMonitorValueLabel)
+      HBox(directoryToMonitorOpenChooserButton, directoryToMonitorValueLabel)
     directoryToMonitorHBox.alignment = Pos.CENTER_LEFT
     directoryToMonitorHBox.spacing = 10.0
 
-    // TODO: add ability to edit rules
-    // TODO: add time of last check
-    // TODO: add list of detected issues in last check
-    // TODO: show indicator if a check is currently running
-
     val contentVbox =
+      VBox(
+        addRuleHeading,
         VBox(
-            addRuleHeading,
-            VBox(
-                ruleNameLabel,
-                ruleNameTextField,
-            ),
-            VBox(
-                regexLabel,
-                regexTextField,
-            ),
-            VBox(
-                directoryToMonitorLabel,
-                directoryToMonitorHBox,
-            ),
-            VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
+          ruleNameLabel,
+          ruleNameTextField,
+        ),
+        VBox(
+          regexLabel,
+          regexTextField,
+        ),
+        VBox(
+          directoryToMonitorLabel,
+          directoryToMonitorHBox,
+        ),
+        VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
     contentVbox.spacing = 7.0
     val leftColVBox = VBox(contentVbox, addRuleBtn)
     leftColVBox.styleClass.add(vboxColStyleClass)
     leftColVBox.spacing = 20.0
-    mainGrid.add(leftColVBox, 0, 0)
 
-    val ruleDetailsHeading = Label("Rule details")
-    ruleDetailsHeading.styleClass.add(headingCssClass)
+    return leftColVBox
+  }
+
+  private fun createMiddleColumn(rightColVBox: VBox): VBox {
+    val ruleListHeading = Label("Rule list")
+    ruleListHeading.styleClass.add(headingCssClass)
+    val ruleList = ListView(ruleList)
+    ruleList.cellFactory = Callback { RuleListCell() }
+
+    val ruleDetailsContentVBox = createRuleDetailsContentVBox()
+    ruleList.setOnMouseClicked {
+      selectedRule.value = ruleList.selectionModel.selectedItem
+      rightColVBox.children[1] = ruleDetailsContentVBox // HACK: to improve the quality of the code, the right column should probably be a custom component
+    }
+
+    VBox.setVgrow(ruleList, Priority.ALWAYS)
+    val middleColVBox = VBox(ruleListHeading, ruleList)
+    middleColVBox.styleClass.add(vboxColStyleClass)
+    return middleColVBox
+  }
+
+  private fun createRuleDetailsContentVBox(): VBox {
     val nameLabel = Label()
     nameLabel.textProperty().bind(
       Bindings.createStringBinding(
         { "Name: ${selectedRule.value?.name}" },
         selectedRule
       ))
+
     val regexValueLabel = Label()
     regexValueLabel.textProperty().bind(
       Bindings.createStringBinding(
         { "Regex: ${selectedRule.value?.regex?.pattern}"},
         selectedRule
       ))
+
     val isEnabledValueLabel = Label()
     isEnabledValueLabel.textProperty().bind(
       Bindings.createStringBinding(
         { "Is enabled?: ${if (selectedRule.value?.isEnabled == true) "yes" else "no"}"},
         selectedRule
       ))
+
     val timeBetweenChecksInMinuteValue = Label()
     timeBetweenChecksInMinuteValue.textProperty().bind(
       Bindings.createStringBinding(
         {"Time between checks: ${selectedRule.value?.timeBetweenChecksInMinutes.toString()} mins"},
         selectedRule
       ))
+
     val runCheckManuallyButton = Button("Run manually") // TODO: make this button work
     val ruleDetailsContentVBox = VBox(nameLabel, regexValueLabel, isEnabledValueLabel, timeBetweenChecksInMinuteValue, runCheckManuallyButton)
     ruleDetailsContentVBox.spacing = 5.0
+
+    return ruleDetailsContentVBox
+  }
+
+  private fun createRightColumn(): VBox {
+    val ruleDetailsHeading = Label("Rule details")
+    ruleDetailsHeading.styleClass.add(headingCssClass)
     val noRuleSelectedLabel = Label("No rule selected")
     noRuleSelectedLabel.id = "no-rule-selected-label"
     val noRuleSelectedVBox = VBox(noRuleSelectedLabel)
@@ -204,27 +238,8 @@ class MainPage : Application() {
 
     val rightColVBox = VBox(ruleDetailsHeading, noRuleSelectedVBox)
     rightColVBox.styleClass.add(vboxColStyleClass)
-    mainGrid.add(rightColVBox, 2, 0)
 
-    val ruleListHeading = Label("Rule list")
-    ruleListHeading.styleClass.add(headingCssClass)
-    val ruleList = ListView(ruleList)
-    ruleList.cellFactory = Callback { RuleListCell() }
-      ruleList.setOnMouseClicked {
-        selectedRule.value = ruleList.selectionModel.selectedItem
-        rightColVBox.children[1] = ruleDetailsContentVBox
-      }
-    VBox.setVgrow(ruleList, Priority.ALWAYS)
-    val middleColVBox = VBox(ruleListHeading, ruleList)
-    middleColVBox.styleClass.add(vboxColStyleClass)
-    mainGrid.add(middleColVBox, 1, 0)
-
-
-    val scene = Scene(mainGrid, defaultWindowWidth, defaultWindowHeight)
-    scene.stylesheets.add("mainpage.css")
-    stage.title = "File conventions"
-    stage.scene = scene
-    stage.show()
+    return rightColVBox
   }
 }
 
