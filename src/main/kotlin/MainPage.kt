@@ -1,7 +1,10 @@
 package com.patriktrefil
 
+import java.awt.event.MouseEvent
+import java.awt.event.MouseListener
 import java.io.File
 import javafx.application.Application
+import javafx.application.Platform
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
 import javafx.collections.FXCollections
@@ -28,11 +31,11 @@ class MainPage : Application() {
   private val ruleList = FXCollections.observableArrayList<Rule>()
   private var directoryToMonitor = SimpleObjectProperty<File?>(null)
   private val directoryToMonitorChooser = DirectoryChooser()
-  private var selectedRule = SimpleObjectProperty<Rule?>(null)
+  private val selectedRule = SimpleObjectProperty<Rule?>(null)
 
   override fun start(stage: Stage) {
     val mainGrid = GridPane()
-    mainGrid.padding = Insets(10.0)
+    mainGrid.padding = Insets(0.0, 10.0, 10.0, 10.0)
 
     val colConstraints = ColumnConstraints()
     colConstraints.hgrow = Priority.ALWAYS
@@ -62,6 +65,48 @@ class MainPage : Application() {
     stage.title = "File conventions"
     stage.scene = scene
     stage.show()
+
+    val trayIcon =
+        addSystemTrayIcon(stage) // This will be used to send notifications from RuleBreakNotifier
+  }
+
+  private fun addSystemTrayIcon(stage: Stage): TrayIcon {
+    val trayIcon = TrayIcon(stage, object {}.javaClass.getResource("/file-check-white.png"), 64, 64)
+    val toggleStageVisibility = { if (stage.isShowing) stage.hide() else stage.show() }
+
+    trayIcon.setMouseListener(
+        object : MouseListener {
+          override fun mouseClicked(e: MouseEvent) {
+            if (e.button == MouseEvent.BUTTON1 && !stage.isShowing)
+                Platform.runLater { stage.show() }
+          }
+
+          override fun mousePressed(e: MouseEvent) {}
+
+          override fun mouseReleased(e: MouseEvent) {}
+
+          override fun mouseEntered(e: MouseEvent) {}
+
+          override fun mouseExited(e: MouseEvent) {}
+        })
+
+    val showOrHideMenuItem = MenuItem("Show/hide")
+    showOrHideMenuItem.setOnAction { toggleStageVisibility() }
+
+    val quitAppMenuItem = MenuItem("Quit application")
+    quitAppMenuItem.setOnAction {
+      // Cleanly stop all threads
+      Platform.exit()
+      trayIcon.hide()
+    }
+
+    trayIcon.addMenuItems(showOrHideMenuItem, quitAppMenuItem)
+
+    trayIcon.setTrayIconTooltip(stage.title)
+
+    trayIcon.show()
+
+    return trayIcon
   }
 
   private fun createLeftColumn(stage: Stage): VBox {

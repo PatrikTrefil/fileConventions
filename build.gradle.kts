@@ -14,6 +14,7 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    implementation("com.dustinredmond.fxtrayicon:FXTrayIcon:4.2.0")
 }
 
 tasks.test {
