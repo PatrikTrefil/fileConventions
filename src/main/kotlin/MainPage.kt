@@ -3,11 +3,13 @@ package com.patriktrefil
 import java.awt.event.MouseEvent
 import java.awt.event.MouseListener
 import java.io.File
+import java.util.*
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
 import javafx.collections.FXCollections
+import javafx.collections.ListChangeListener
 import javafx.event.EventHandler
 import javafx.geometry.Insets
 import javafx.geometry.Pos
@@ -18,6 +20,11 @@ import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
 import javafx.util.Callback
+import net.harawata.appdirs.AppDirsFactory
+import org.hibernate.SessionFactory
+import org.hibernate.boot.MetadataSources
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder
+import org.hibernate.cfg.Configuration
 
 private const val defaultWindowWidth = 840.0
 private const val defaultWindowHeight = 480.0
@@ -26,14 +33,68 @@ private const val errorTextFieldCssClass = "error-text-field"
 private const val errorLabelCssClass = "error-label"
 private const val vboxColStyleClass = "vbox-col"
 
+// TODO: split mainpage into multiple classes
+
 class MainPage : Application() {
-  // TODO: rule list persistence
   private val ruleList = FXCollections.observableArrayList<Rule>()
   private var directoryToMonitor = SimpleObjectProperty<File?>(null)
   private val directoryToMonitorChooser = DirectoryChooser()
   private val selectedRule = SimpleObjectProperty<Rule?>(null)
+  private val ruleListView = ListView(ruleList)
 
   override fun start(stage: Stage) {
+    // TODO: refactor start function - split into multiple
+    println("Setting up persistent storage...")
+
+    val userDataDir =
+        AppDirsFactory.getInstance().getUserDataDir("File Conventions", "1.0.0", "Patrik Trefil")
+    println("Storage path: $userDataDir")
+
+    // We manually load hibernate.properties and then set the db url at runtime based on the user's
+    // OS
+    val config = Configuration()
+    val properties = Properties()
+    properties.load(ClassLoader.getSystemResourceAsStream("hibernate.properties"))
+    config.addProperties(properties)
+    config.setProperty("hibernate.connection.url", "jdbc:h2:${userDataDir};DB_CLOSE_DELAY=-1")
+
+    val registry = StandardServiceRegistryBuilder().applySettings(config.properties).build()
+    // A SessionFactory is set up once for an application!
+    val sessionFactory: SessionFactory
+    try {
+      sessionFactory =
+          MetadataSources(registry)
+              .addAnnotatedClass(Rule::class.java)
+              .buildMetadata()
+              .buildSessionFactory()
+    } catch (e: Exception) {
+      // The registry would be destroyed by the SessionFactory, but we
+      // had trouble building the SessionFactory so destroy it manually.
+      StandardServiceRegistryBuilder.destroy(registry)
+      return
+    }
+    sessionFactory.inTransaction {
+      val persistedRules = it.createSelectionQuery("SELECT r FROM Rule r", Rule::class.java).list()
+      ruleList.addAll(persistedRules)
+    }
+
+    ruleList.addListener(
+        ListChangeListener { change ->
+          while (change.next()) {
+            if (change.wasAdded()) {
+              sessionFactory.inTransaction { for (value in change.addedSubList) it.persist(value) }
+            } else if (change.wasRemoved()) {
+              sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
+            } else if (change.wasUpdated()) {
+              TODO()
+            } else if (change.wasReplaced()) {
+              TODO()
+            }
+          }
+        })
+    println("Finished setting up persistent storage")
+
+    println("Setting up UI...")
     val mainGrid = GridPane()
     mainGrid.padding = Insets(0.0, 10.0, 10.0, 10.0)
 
@@ -57,7 +118,7 @@ class MainPage : Application() {
     val rightColVBox = createRightColumn()
     mainGrid.add(rightColVBox, 2, 0)
 
-    mainGrid.add(createMiddleColumn(rightColVBox), 1, 0)
+    mainGrid.add(createMiddleColumn(), 1, 0)
 
     val scene = Scene(mainGrid, defaultWindowWidth, defaultWindowHeight)
     scene.stylesheets.add("mainpage.css")
@@ -68,6 +129,8 @@ class MainPage : Application() {
 
     val trayIcon =
         addSystemTrayIcon(stage) // This will be used to send notifications from RuleBreakNotifier
+
+    println("Finished setting up UI")
   }
 
   private fun addSystemTrayIcon(stage: Stage): TrayIcon {
@@ -155,13 +218,15 @@ class MainPage : Application() {
     addRuleBtn.maxWidth = Double.MAX_VALUE
     addRuleBtn.padding = Insets(5.0)
     addRuleBtn.setOnMouseClicked {
+      val directoryToMonitorValue = directoryToMonitor.value
+
       if (ruleNameTextField.text.isBlank()) {
         ruleNameTextField.styleClass.add(errorTextFieldCssClass)
         return@setOnMouseClicked
       } else if (regexTextField.text.isBlank()) {
         regexTextField.styleClass.add(errorTextFieldCssClass)
         return@setOnMouseClicked
-      } else if (directoryToMonitor.value == null) {
+      } else if (directoryToMonitorValue == null) {
         directoryToMonitorValueLabel.styleClass.add(errorLabelCssClass)
         return@setOnMouseClicked
       }
@@ -182,7 +247,13 @@ class MainPage : Application() {
         return@setOnMouseClicked
       }
 
-      ruleList.add(Rule(ruleNameTextField.text, regex, true, timeBetweenChecksInMinutes))
+      ruleList.add(
+          Rule(
+              ruleNameTextField.text,
+              regex,
+              true,
+              timeBetweenChecksInMinutes,
+              directoryToMonitorValue))
       regexTextField.text = ""
       ruleNameTextField.text = ""
       directoryToMonitor.value = null
@@ -210,6 +281,7 @@ class MainPage : Application() {
             ),
             VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
     contentVbox.spacing = 7.0
+
     val leftColVBox = VBox(contentVbox, addRuleBtn)
     leftColVBox.styleClass.add(vboxColStyleClass)
     leftColVBox.spacing = 20.0
@@ -217,22 +289,15 @@ class MainPage : Application() {
     return leftColVBox
   }
 
-  private fun createMiddleColumn(rightColVBox: VBox): VBox {
+  private fun createMiddleColumn(): VBox {
     val ruleListHeading = Label("Rule list")
     ruleListHeading.styleClass.add(headingCssClass)
-    val ruleList = ListView(ruleList)
-    ruleList.cellFactory = Callback { RuleListCell() }
+    ruleListView.cellFactory = Callback { RuleListCell() }
 
-    val ruleDetailsContentVBox = createRuleDetailsContentVBox()
-    ruleList.setOnMouseClicked {
-      selectedRule.value = ruleList.selectionModel.selectedItem
-      rightColVBox.children[1] =
-          ruleDetailsContentVBox // HACK: to improve the quality of the code, the right column
-      // should probably be a custom component
-    }
+    selectedRule.bind(ruleListView.selectionModel.selectedItemProperty())
 
-    VBox.setVgrow(ruleList, Priority.ALWAYS)
-    val middleColVBox = VBox(ruleListHeading, ruleList)
+    VBox.setVgrow(ruleListView, Priority.ALWAYS)
+    val middleColVBox = VBox(ruleListHeading, ruleListView)
     middleColVBox.styleClass.add(vboxColStyleClass)
     return middleColVBox
   }
@@ -268,14 +333,31 @@ class MainPage : Application() {
                 },
                 selectedRule))
 
+    val pathToCheckValue = Label()
+    pathToCheckValue
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                { "Path to monitor: ${selectedRule.value?.pathToMonitor}" }, selectedRule))
+
     val runCheckManuallyButton = Button("Run manually") // TODO: make this button work
+    val deleteButton = Button("Delete")
+    deleteButton.onMouseClicked = EventHandler {
+      ruleList.remove(selectedRule.value)
+      ruleListView.selectionModel.clearSelection()
+    }
+
+    val buttonsHBox = HBox(runCheckManuallyButton, deleteButton)
+    buttonsHBox.spacing = 5.0
+
     val ruleDetailsContentVBox =
         VBox(
             nameLabel,
             regexValueLabel,
             isEnabledValueLabel,
             timeBetweenChecksInMinuteValue,
-            runCheckManuallyButton)
+            pathToCheckValue,
+            buttonsHBox)
     ruleDetailsContentVBox.spacing = 5.0
 
     return ruleDetailsContentVBox
@@ -292,6 +374,12 @@ class MainPage : Application() {
 
     val rightColVBox = VBox(ruleDetailsHeading, noRuleSelectedVBox)
     rightColVBox.styleClass.add(vboxColStyleClass)
+
+    val ruleDetailsContentVBox = createRuleDetailsContentVBox()
+    selectedRule.addListener { observableValue, _, _ ->
+      if (observableValue.value == null) rightColVBox.children[1] = noRuleSelectedVBox
+      else rightColVBox.children[1] = ruleDetailsContentVBox
+    }
 
     return rightColVBox
   }

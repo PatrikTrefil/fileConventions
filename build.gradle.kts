@@ -15,6 +15,9 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     implementation("com.dustinredmond.fxtrayicon:FXTrayIcon:4.2.0")
+    implementation("org.hibernate.orm:hibernate-core:6.5.2.Final")
+    implementation("com.h2database:h2:2.2.224")
+    implementation("net.harawata:appdirs:1.2.2")
 }
 
 tasks.test {
