@@ -13,9 +13,11 @@ import javafx.collections.ListChangeListener
 import javafx.event.EventHandler
 import javafx.geometry.Insets
 import javafx.geometry.Pos
+import javafx.scene.Parent
 import javafx.scene.Scene
 import javafx.scene.control.*
 import javafx.scene.input.InputEvent
+import javafx.scene.input.KeyCode
 import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
@@ -25,7 +27,6 @@ import org.hibernate.SessionFactory
 import org.hibernate.boot.MetadataSources
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder
 import org.hibernate.cfg.Configuration
-import javafx.scene.Parent
 
 private const val defaultWindowWidth = 840.0
 private const val defaultWindowHeight = 480.0
@@ -95,7 +96,7 @@ class MainPage : Application() {
     println("Setting up persistent storage...")
 
     val userDataDir =
-      AppDirsFactory.getInstance().getUserDataDir("File Conventions", "1.0.0", "Patrik Trefil")
+        AppDirsFactory.getInstance().getUserDataDir("File Conventions", "1.0.0", "Patrik Trefil")
     println("Storage path: $userDataDir")
 
     // We manually load hibernate.properties and then set the db url at runtime based on the user's
@@ -111,10 +112,10 @@ class MainPage : Application() {
     val sessionFactory: SessionFactory
     try {
       sessionFactory =
-        MetadataSources(registry)
-          .addAnnotatedClass(Rule::class.java)
-          .buildMetadata()
-          .buildSessionFactory()
+          MetadataSources(registry)
+              .addAnnotatedClass(Rule::class.java)
+              .buildMetadata()
+              .buildSessionFactory()
     } catch (e: Exception) {
       // The registry would be destroyed by the SessionFactory, but we
       // had trouble building the SessionFactory so destroy it manually.
@@ -127,19 +128,19 @@ class MainPage : Application() {
     }
 
     ruleList.addListener(
-      ListChangeListener { change ->
-        while (change.next()) {
-          if (change.wasAdded()) {
-            sessionFactory.inTransaction { for (value in change.addedSubList) it.persist(value) }
-          } else if (change.wasRemoved()) {
-            sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
-          } else if (change.wasUpdated()) {
-            TODO()
-          } else if (change.wasReplaced()) {
-            TODO()
+        ListChangeListener { change ->
+          while (change.next()) {
+            if (change.wasAdded()) {
+              sessionFactory.inTransaction { for (value in change.addedSubList) it.persist(value) }
+            } else if (change.wasRemoved()) {
+              sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
+            } else if (change.wasUpdated()) {
+              TODO()
+            } else if (change.wasReplaced()) {
+              TODO()
+            }
           }
-        }
-      })
+        })
 
     println("Finished setting up persistent storage")
   }
@@ -304,6 +305,10 @@ class MainPage : Application() {
     val ruleListHeading = Label("Rule list")
     ruleListHeading.styleClass.add(headingCssClass)
     ruleListView.cellFactory = Callback { RuleListCell() }
+    ruleListView.setOnKeyPressed { e ->
+      if (e.code == KeyCode.DELETE)
+          ruleList.remove(ruleListView.selectionModel.selectedItemProperty().value)
+    }
 
     selectedRule.bind(ruleListView.selectionModel.selectedItemProperty())
 
