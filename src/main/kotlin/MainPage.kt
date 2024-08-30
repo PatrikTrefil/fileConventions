@@ -25,6 +25,7 @@ import org.hibernate.SessionFactory
 import org.hibernate.boot.MetadataSources
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder
 import org.hibernate.cfg.Configuration
+import javafx.scene.Parent
 
 private const val defaultWindowWidth = 840.0
 private const val defaultWindowHeight = 480.0
@@ -43,58 +44,25 @@ class MainPage : Application() {
   private val ruleListView = ListView(ruleList)
 
   override fun start(stage: Stage) {
-    // TODO: refactor start function - split into multiple
-    println("Setting up persistent storage...")
-
-    val userDataDir =
-        AppDirsFactory.getInstance().getUserDataDir("File Conventions", "1.0.0", "Patrik Trefil")
-    println("Storage path: $userDataDir")
-
-    // We manually load hibernate.properties and then set the db url at runtime based on the user's
-    // OS
-    val config = Configuration()
-    val properties = Properties()
-    properties.load(ClassLoader.getSystemResourceAsStream("hibernate.properties"))
-    config.addProperties(properties)
-    config.setProperty("hibernate.connection.url", "jdbc:h2:${userDataDir};DB_CLOSE_DELAY=-1")
-
-    val registry = StandardServiceRegistryBuilder().applySettings(config.properties).build()
-    // A SessionFactory is set up once for an application!
-    val sessionFactory: SessionFactory
-    try {
-      sessionFactory =
-          MetadataSources(registry)
-              .addAnnotatedClass(Rule::class.java)
-              .buildMetadata()
-              .buildSessionFactory()
-    } catch (e: Exception) {
-      // The registry would be destroyed by the SessionFactory, but we
-      // had trouble building the SessionFactory so destroy it manually.
-      StandardServiceRegistryBuilder.destroy(registry)
-      return
-    }
-    sessionFactory.inTransaction {
-      val persistedRules = it.createSelectionQuery("SELECT r FROM Rule r", Rule::class.java).list()
-      ruleList.addAll(persistedRules)
-    }
-
-    ruleList.addListener(
-        ListChangeListener { change ->
-          while (change.next()) {
-            if (change.wasAdded()) {
-              sessionFactory.inTransaction { for (value in change.addedSubList) it.persist(value) }
-            } else if (change.wasRemoved()) {
-              sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
-            } else if (change.wasUpdated()) {
-              TODO()
-            } else if (change.wasReplaced()) {
-              TODO()
-            }
-          }
-        })
-    println("Finished setting up persistent storage")
+    setupRuleListPersistence()
 
     println("Setting up UI...")
+
+    val userInterface = createUserInterface(stage)
+    val scene = Scene(userInterface, defaultWindowWidth, defaultWindowHeight)
+    scene.stylesheets.add("mainpage.css")
+
+    stage.title = "File conventions"
+    stage.scene = scene
+    stage.show()
+
+    val trayIcon =
+        addSystemTrayIcon(stage) // This will be used to send notifications from RuleBreakNotifier
+
+    println("Finished setting up UI")
+  }
+
+  private fun createUserInterface(stage: Stage): Parent {
     val mainGrid = GridPane()
     mainGrid.padding = Insets(0.0, 10.0, 10.0, 10.0)
 
@@ -120,17 +88,60 @@ class MainPage : Application() {
 
     mainGrid.add(createMiddleColumn(), 1, 0)
 
-    val scene = Scene(mainGrid, defaultWindowWidth, defaultWindowHeight)
-    scene.stylesheets.add("mainpage.css")
+    return mainGrid
+  }
 
-    stage.title = "File conventions"
-    stage.scene = scene
-    stage.show()
+  private fun setupRuleListPersistence() {
+    println("Setting up persistent storage...")
 
-    val trayIcon =
-        addSystemTrayIcon(stage) // This will be used to send notifications from RuleBreakNotifier
+    val userDataDir =
+      AppDirsFactory.getInstance().getUserDataDir("File Conventions", "1.0.0", "Patrik Trefil")
+    println("Storage path: $userDataDir")
 
-    println("Finished setting up UI")
+    // We manually load hibernate.properties and then set the db url at runtime based on the user's
+    // OS
+    val config = Configuration()
+    val properties = Properties()
+    properties.load(ClassLoader.getSystemResourceAsStream("hibernate.properties"))
+    config.addProperties(properties)
+    config.setProperty("hibernate.connection.url", "jdbc:h2:${userDataDir};DB_CLOSE_DELAY=-1")
+
+    val registry = StandardServiceRegistryBuilder().applySettings(config.properties).build()
+    // A SessionFactory is set up once for an application!
+    val sessionFactory: SessionFactory
+    try {
+      sessionFactory =
+        MetadataSources(registry)
+          .addAnnotatedClass(Rule::class.java)
+          .buildMetadata()
+          .buildSessionFactory()
+    } catch (e: Exception) {
+      // The registry would be destroyed by the SessionFactory, but we
+      // had trouble building the SessionFactory so destroy it manually.
+      StandardServiceRegistryBuilder.destroy(registry)
+      return
+    }
+    sessionFactory.inTransaction {
+      val persistedRules = it.createSelectionQuery("SELECT r FROM Rule r", Rule::class.java).list()
+      ruleList.addAll(persistedRules)
+    }
+
+    ruleList.addListener(
+      ListChangeListener { change ->
+        while (change.next()) {
+          if (change.wasAdded()) {
+            sessionFactory.inTransaction { for (value in change.addedSubList) it.persist(value) }
+          } else if (change.wasRemoved()) {
+            sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
+          } else if (change.wasUpdated()) {
+            TODO()
+          } else if (change.wasReplaced()) {
+            TODO()
+          }
+        }
+      })
+
+    println("Finished setting up persistent storage")
   }
 
   private fun addSystemTrayIcon(stage: Stage): TrayIcon {
