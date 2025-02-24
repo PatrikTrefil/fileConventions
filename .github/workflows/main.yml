@@ -13,7 +13,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: 18
+          java-version: 17
           distribution: "oracle"
 
       - name: Setup Gradle
@@ -40,7 +40,7 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: 18
+          java-version: 17
           distribution: "oracle"
 
       - name: Setup Gradle
