@@ -331,8 +331,7 @@ class MainPage : Application() {
               patternLanguage,
               true,
               timeBetweenChecksInMinutes,
-              directoryToMonitorValue)
-      )
+              directoryToMonitorValue))
       patternTextField.text = ""
       ruleNameTextField.text = ""
       directoryToMonitor.value = null
