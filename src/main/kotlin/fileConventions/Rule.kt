@@ -29,12 +29,12 @@ class Rule {
   }
 
   constructor(
-    name: String,
-    pattern: String,
-    patternLanguage: PatternLanguage,
-    isEnabled: Boolean,
-    timeBetweenChecksInMinutes: Int,
-    pathToMonitor: File
+      name: String,
+      pattern: String,
+      patternLanguage: PatternLanguage,
+      isEnabled: Boolean,
+      timeBetweenChecksInMinutes: Int,
+      pathToMonitor: File
   ) {
     this.id = 0
     this.name = name

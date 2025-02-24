@@ -143,7 +143,8 @@ class MainPage : Application() {
     val properties = Properties()
     properties.load(ClassLoader.getSystemResourceAsStream("hibernate.properties"))
     config.addProperties(properties)
-    config.setProperty("hibernate.connection.url", "jdbc:hsqldb:file:${userDataDir};DB_CLOSE_DELAY=-1")
+    config.setProperty(
+        "hibernate.connection.url", "jdbc:hsqldb:file:${userDataDir};DB_CLOSE_DELAY=-1")
 
     val registry = StandardServiceRegistryBuilder().applySettings(config.properties).build()
     // A SessionFactory is set up once for an application!
@@ -326,8 +327,7 @@ class MainPage : Application() {
               patternLanguage,
               true,
               timeBetweenChecksInMinutes,
-              directoryToMonitorValue)
-      )
+              directoryToMonitorValue))
       patternTextField.text = ""
       ruleNameTextField.text = ""
       directoryToMonitor.value = null
