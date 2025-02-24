@@ -1,4 +1,4 @@
-package com.patriktrefil
+package com.trefilsoftware.fileConventions
 
 import com.dustinredmond.fxtrayicon.FXTrayIcon
 import java.awt.event.MouseListener

@@ -1,5 +1,6 @@
-package com.patriktrefil
+package com.trefilsoftware.fileConventions
 
+import java.awt.Desktop
 import java.awt.event.MouseEvent
 import java.awt.event.MouseListener
 import java.io.File
@@ -8,41 +9,47 @@ import javafx.application.Application
 import javafx.application.Platform
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
+import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
 import javafx.collections.ListChangeListener
 import javafx.event.EventHandler
 import javafx.geometry.Insets
 import javafx.geometry.Pos
+import javafx.scene.Node
 import javafx.scene.Parent
 import javafx.scene.Scene
 import javafx.scene.control.*
+import javafx.scene.image.Image
 import javafx.scene.input.InputEvent
 import javafx.scene.input.KeyCode
 import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
 import javafx.util.Callback
+import javafx.util.Duration
 import net.harawata.appdirs.AppDirsFactory
 import org.hibernate.SessionFactory
 import org.hibernate.boot.MetadataSources
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder
 import org.hibernate.cfg.Configuration
 
-private const val defaultWindowWidth = 840.0
-private const val defaultWindowHeight = 480.0
-private const val headingCssClass = "heading"
-private const val errorTextFieldCssClass = "error-text-field"
-private const val errorLabelCssClass = "error-label"
-private const val vboxColStyleClass = "vbox-col"
-
 // TODO: split mainpage into multiple classes
 
 class MainPage : Application() {
+  private val defaultWindowWidth = 840.0
+  private val defaultWindowHeight = 480.0
+  private val headingCssClass = "heading"
+  private val errorTextFieldCssClass = "error-text-field"
+  private val errorLabelCssClass = "error-label"
+  private val vboxColStyleClass = "vbox-col"
+
   private val ruleList = FXCollections.observableArrayList<Rule>()
   private var directoryToMonitor = SimpleObjectProperty<File?>(null)
   private val directoryToMonitorChooser = DirectoryChooser()
   private val selectedRule = SimpleObjectProperty<Rule?>(null)
   private val ruleListView = ListView(ruleList)
+  private val issuesList = FXCollections.observableArrayList<Issue>()
+  private val issuesTableView = TableView(issuesList)
 
   override fun start(stage: Stage) {
     setupRuleListPersistence()
@@ -51,10 +58,11 @@ class MainPage : Application() {
 
     val userInterface = createUserInterface(stage)
     val scene = Scene(userInterface, defaultWindowWidth, defaultWindowHeight)
-    scene.stylesheets.add("mainpage.css")
+    scene.stylesheets.add("main.css")
 
     stage.title = "File conventions"
     stage.scene = scene
+    stage.icons.add(Image(object {}.javaClass.getResourceAsStream("/file-check-white.png")))
     stage.show()
 
     val trayIcon =
@@ -64,6 +72,39 @@ class MainPage : Application() {
   }
 
   private fun createUserInterface(stage: Stage): Parent {
+    val tabPane = TabPane()
+    tabPane.tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
+    tabPane.tabs.addAll(Tab("Rules", createRulesPane(stage)), Tab("Issues", createIssuesPane()))
+    return tabPane
+  }
+
+  private fun createIssuesPane(): Node {
+    val issueHeading = Label("Detected issues")
+    issueHeading.styleClass.add(headingCssClass)
+
+    val detectedAtColumn = TableColumn<Issue, String>("Detected at")
+    detectedAtColumn.cellValueFactory = Callback {
+      SimpleStringProperty(it.value.source.lastCheckAt.toString())
+    }
+
+    val sourceRuleColumn = TableColumn<Issue, String>("Violated rule name")
+    sourceRuleColumn.cellValueFactory = Callback { SimpleStringProperty(it.value.source.name) }
+
+    val sourceFilePathColumn = TableColumn<Issue, String>("Source file")
+    sourceFilePathColumn.cellValueFactory = Callback {
+      SimpleStringProperty(it.value.sourceFilePath)
+    }
+
+    issuesTableView.columns.addAll(sourceFilePathColumn, sourceRuleColumn, detectedAtColumn)
+    issuesTableView.columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY
+
+    val issuePaneVbox = VBox(issueHeading, issuesTableView)
+
+    issuePaneVbox.styleClass.add(vboxColStyleClass)
+    return issuePaneVbox
+  }
+
+  private fun createRulesPane(stage: Stage): Node {
     val mainGrid = GridPane()
     mainGrid.padding = Insets(0.0, 10.0, 10.0, 10.0)
 
@@ -77,9 +118,6 @@ class MainPage : Application() {
     rowConstraints.vgrow = Priority.ALWAYS
     mainGrid.rowConstraints.add(rowConstraints)
 
-    // TODO: add ability to edit rules
-    // TODO: add time of last check
-    // TODO: add list of detected issues in last check
     // TODO: show indicator if a check is currently running
 
     mainGrid.add(createLeftColumn(stage), 0, 0)
@@ -105,7 +143,7 @@ class MainPage : Application() {
     val properties = Properties()
     properties.load(ClassLoader.getSystemResourceAsStream("hibernate.properties"))
     config.addProperties(properties)
-    config.setProperty("hibernate.connection.url", "jdbc:h2:${userDataDir};DB_CLOSE_DELAY=-1")
+    config.setProperty("hibernate.connection.url", "jdbc:hsqldb:file:${userDataDir};DB_CLOSE_DELAY=-1")
 
     val registry = StandardServiceRegistryBuilder().applySettings(config.properties).build()
     // A SessionFactory is set up once for an application!
@@ -135,9 +173,9 @@ class MainPage : Application() {
             } else if (change.wasRemoved()) {
               sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
             } else if (change.wasUpdated()) {
-              TODO()
-            } else if (change.wasReplaced()) {
-              TODO()
+              sessionFactory.inTransaction {
+                for (i in change.from..change.to) it.merge(change.list[i])
+              }
             }
           }
         })
@@ -194,11 +232,31 @@ class MainPage : Application() {
       ruleNameTextField.styleClass.remove(errorTextFieldCssClass)
     }
 
-    // TODO: add simpler alternative to regexes
-    val regexLabel = Label("Regex")
-    val regexTextField = TextField()
-    regexTextField.textProperty().addListener { _ ->
-      regexTextField.styleClass.remove(errorTextFieldCssClass)
+    val patternLanguageLabel = Label("Pattern language")
+    val patternLanguageCombobox = ComboBox<PatternLanguage>()
+    patternLanguageCombobox.items.addAll(PatternLanguage.Wildcard, PatternLanguage.Regex)
+    patternLanguageCombobox.selectionModel.select(0)
+
+    val patternLabel = Label("Pattern")
+    val tooltip =
+        Tooltip(
+            """Regular expression or wildcard pattern to check for.
+      |
+      |Regular expression examples:
+      |  - "^[A-Z]+$" matches non-empty strings that contain only uppercase letters
+      |  - "^.*\.txt$" matches strings that end with .txt
+      |Wildcard examples:
+      |  - "*.txt" matches strings that end with .txt
+    """
+                .trimMargin())
+    tooltip.showDuration = Duration.INDEFINITE
+    tooltip.showDelay = Duration(200.0)
+    val patternHelpButton = Button("?")
+    patternHelpButton.style = "-fx-padding: 0 5 0 5; -fx-border-radius: 50%;"
+    Tooltip.install(patternHelpButton, tooltip)
+    val patternTextField = TextField()
+    patternTextField.textProperty().addListener { _ ->
+      patternTextField.styleClass.remove(errorTextFieldCssClass)
     }
 
     val directoryToMonitorLabel = Label("Directory to monitor")
@@ -235,21 +293,23 @@ class MainPage : Application() {
       if (ruleNameTextField.text.isBlank()) {
         ruleNameTextField.styleClass.add(errorTextFieldCssClass)
         return@setOnMouseClicked
-      } else if (regexTextField.text.isBlank()) {
-        regexTextField.styleClass.add(errorTextFieldCssClass)
+      } else if (patternTextField.text.isBlank()) {
+        patternTextField.styleClass.add(errorTextFieldCssClass)
         return@setOnMouseClicked
       } else if (directoryToMonitorValue == null) {
         directoryToMonitorValueLabel.styleClass.add(errorLabelCssClass)
         return@setOnMouseClicked
       }
 
-      val regex: Regex
+      val pattern: String
       try {
-        regex = Regex(regexTextField.text)
+        pattern = patternTextField.text
       } catch (e: Exception) {
-        regexTextField.styleClass.add(errorTextFieldCssClass)
+        patternTextField.styleClass.add(errorTextFieldCssClass)
         return@setOnMouseClicked
       }
+
+      val patternLanguage = patternLanguageCombobox.value
 
       val timeBetweenChecksInMinutes: Int
       try {
@@ -262,11 +322,13 @@ class MainPage : Application() {
       ruleList.add(
           Rule(
               ruleNameTextField.text,
-              regex,
+              pattern,
+              patternLanguage,
               true,
               timeBetweenChecksInMinutes,
-              directoryToMonitorValue))
-      regexTextField.text = ""
+              directoryToMonitorValue)
+      )
+      patternTextField.text = ""
       ruleNameTextField.text = ""
       directoryToMonitor.value = null
     }
@@ -283,9 +345,10 @@ class MainPage : Application() {
                 ruleNameLabel,
                 ruleNameTextField,
             ),
+            VBox(patternLanguageLabel, patternLanguageCombobox),
             VBox(
-                regexLabel,
-                regexTextField,
+                HBox(patternLabel, patternHelpButton),
+                patternTextField,
             ),
             VBox(
                 directoryToMonitorLabel,
@@ -324,12 +387,18 @@ class MainPage : Application() {
         .textProperty()
         .bind(Bindings.createStringBinding({ "Name: ${selectedRule.value?.name}" }, selectedRule))
 
-    val regexValueLabel = Label()
-    regexValueLabel
+    val patternLanguageLabel = Label()
+    patternLanguageLabel
         .textProperty()
         .bind(
             Bindings.createStringBinding(
-                { "Regex: ${selectedRule.value?.regex?.pattern}" }, selectedRule))
+                { "Pattern language: ${selectedRule.value?.patternLanguage}" }, selectedRule))
+
+    val patternLabel = Label()
+    patternLabel
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding({ "Regex: ${selectedRule.value?.pattern}" }, selectedRule))
 
     val isEnabledValueLabel = Label()
     isEnabledValueLabel
@@ -349,12 +418,19 @@ class MainPage : Application() {
                 },
                 selectedRule))
 
-    val pathToCheckValue = Label()
-    pathToCheckValue
+    val pathToMonitorLabel = Label()
+    pathToMonitorLabel
         .textProperty()
         .bind(
             Bindings.createStringBinding(
                 { "Path to monitor: ${selectedRule.value?.pathToMonitor}" }, selectedRule))
+
+    val lastCheckAtLabel = Label()
+    lastCheckAtLabel
+        .textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                { "Last check at: ${selectedRule.value?.lastCheckAt ?: "never"}" }, selectedRule))
 
     val runCheckManuallyButton = Button("Run manually") // TODO: make this button work
     val deleteButton = Button("Delete")
@@ -362,17 +438,26 @@ class MainPage : Application() {
       ruleList.remove(selectedRule.value)
       ruleListView.selectionModel.clearSelection()
     }
+    val openMonitoredFolderButton = Button("Open monitored folder")
+    openMonitoredFolderButton.onMouseClicked = EventHandler {
+      val pathToMonitor = selectedRule.value?.pathToMonitor
+      if (pathToMonitor != null) {
+        Desktop.getDesktop().open(pathToMonitor)
+      }
+    }
 
-    val buttonsHBox = HBox(runCheckManuallyButton, deleteButton)
+    val buttonsHBox = HBox(runCheckManuallyButton, deleteButton, openMonitoredFolderButton)
     buttonsHBox.spacing = 5.0
 
     val ruleDetailsContentVBox =
         VBox(
             nameLabel,
-            regexValueLabel,
+            patternLanguageLabel,
+            patternLabel,
             isEnabledValueLabel,
             timeBetweenChecksInMinuteValue,
-            pathToCheckValue,
+            pathToMonitorLabel,
+            lastCheckAtLabel,
             buttonsHBox)
     ruleDetailsContentVBox.spacing = 5.0
 

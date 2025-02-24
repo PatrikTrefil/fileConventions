@@ -1,4 +1,4 @@
-package com.patriktrefil
+package com.trefilsoftware.fileConventions
 
 import javafx.application.Application
 
