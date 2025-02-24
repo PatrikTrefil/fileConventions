@@ -1,5 +1,9 @@
-package com.trefilsoftware.fileConventions
+package fileConventions
 
+import com.trefilsoftware.fileConventions.Issue
+import com.trefilsoftware.fileConventions.PatternLanguage
+import com.trefilsoftware.fileConventions.Rule
+import com.trefilsoftware.fileConventions.TrayIcon
 import java.awt.Desktop
 import java.awt.event.MouseEvent
 import java.awt.event.MouseListener
@@ -327,7 +331,8 @@ class MainPage : Application() {
               patternLanguage,
               true,
               timeBetweenChecksInMinutes,
-              directoryToMonitorValue))
+              directoryToMonitorValue)
+      )
       patternTextField.text = ""
       ruleNameTextField.text = ""
       directoryToMonitor.value = null
