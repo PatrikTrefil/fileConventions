@@ -35,14 +35,17 @@ class MainPage : Application() {
   private val ruleTitle = Label("Your naming checks, at a glance")
   private val ruleDescription = Label()
   private val overview = Label()
-  private val runs = FXCollections.observableArrayList<CheckResult>()
+
+  private data class HistoryEntry(val result: CheckResult, val newViolations: Int)
+
+  private val runs = FXCollections.observableArrayList<HistoryEntry>()
   private val runList = ListView(runs)
   private val runDetails =
       TextArea().apply {
         isEditable = false
         isWrapText = true
       }
-  private val notifications = CheckBox("Desktop alerts")
+  private val notifications = CheckBox("System notifications")
   private val status = Label("Ready")
   private val background = Label()
   private val results = mutableMapOf<String, CheckResult>()
@@ -101,7 +104,7 @@ class MainPage : Application() {
       Platform.runLater {
         if (rules.none { it == result.rule }) return@runLater
         checking.remove(result.rule.id)
-        runs.add(0, result)
+        runs.add(0, HistoryEntry(result, fresh))
         if (runs.size > 100) runs.removeAt(runs.lastIndex)
         latestResults[result.rule.id] = result
         if (result.error == null) results[result.rule.id] = result
@@ -109,7 +112,7 @@ class MainPage : Application() {
         list.refresh()
         status.text =
             if (result.error != null)
-                "Could not check ${result.rule.name}. See Check history for details."
+                "Could not check ${result.rule.name}. See History for details."
             else "Checked ${result.rule.name} at ${time(result.checkedAt)}"
         if (fresh > 0 && notifications.isSelected)
             tray?.displayMessage(
@@ -319,7 +322,7 @@ class MainPage : Application() {
     notifications.tooltip =
         Tooltip(
             if (tray == null)
-                "Desktop alerts require a supported system tray. Checks still work here."
+                "System notifications require a supported system tray. Checks still work here."
             else
                 "Alert once per new violation. Unchanged violations won’t repeat alerts during this session.")
     stage.setOnCloseRequest {
@@ -358,7 +361,7 @@ class MainPage : Application() {
                 "Select a rule to see violations. Check now refreshes immediately, even for a paused rule. Fix names yourself in your file manager; the next check clears resolved violations."),
             label("While you work", "step-title"),
             label(
-                "Enabled rules check on startup, periodically, and after folder changes (with a short settling delay). Desktop alerts appear for new violations; unchanged ones won’t repeat during this session. Check history holds the latest 100 checks until you quit."),
+                "Enabled rules check on startup, periodically, and after folder changes (with a short settling delay). System notifications appear for new violations; unchanged ones won’t repeat during this session. History holds the latest 100 checks until you quit, with total and newly detected violation counts for each check."),
             label(background.text),
             label("Open the app after signing in: installation does not enable automatic startup."),
             label("The app never renames, deletes, or changes your files.", "safe-note"))
@@ -413,34 +416,51 @@ class MainPage : Application() {
         }
     runList.placeholder = label("No checks yet.\nEnabled rules check automatically after saving.")
     runList.setCellFactory {
-      object : ListCell<CheckResult>() {
-        override fun updateItem(item: CheckResult?, empty: Boolean) {
+      object : ListCell<HistoryEntry>() {
+        override fun updateItem(item: HistoryEntry?, empty: Boolean) {
           super.updateItem(item, empty)
           text =
               if (empty || item == null) null
               else
-                  "${item.rule.name} · ${time(item.checkedAt)}\n${if (item.error != null) "Check failed" else "${item.issues.size} violations"}"
+                  "${item.result.rule.name} · ${time(item.result.checkedAt)}\n" +
+                      if (item.result.error != null) "Check failed · Counts unavailable"
+                      else "${item.result.issues.size} total violations · ${item.newViolations} new"
         }
       }
     }
-    runList.selectionModel.selectedItemProperty().addListener { _, _, run ->
+    runList.selectionModel.selectedItemProperty().addListener { _, _, entry ->
+      val run = entry?.result
       runDetails.text =
           if (run == null) "Select a check to see details."
           else
-              "Rule: ${run.rule.name}\nChecked: ${time(run.checkedAt)}\nFolder: ${run.rule.pathToMonitor}\nPattern: ${run.rule.pattern}\nInclude subfolders: ${run.rule.recursive}\n\n" +
-                  (run.error?.let { "Check failed: $it" }
-                      ?: "${run.issues.size} violations\n" +
-                          run.issues.joinToString("\n") { it.sourceFilePath })
+              (run.error?.let { "Check failed: $it\nCounts unavailable." }
+                  ?: "Total violations: ${run.issues.size}\nNew this check: ${entry.newViolations}") +
+                  "\n\nRule: ${run.rule.name}\nChecked: ${time(run.checkedAt)}\nFolder: ${run.rule.pathToMonitor}\nPattern: ${run.rule.pattern}\nInclude subfolders: ${if (run.rule.recursive) "Yes" else "No"}" +
+                  if (run.error == null)
+                      "\n\nAll files violating this rule at this check:\n" +
+                          run.issues.joinToString("\n") { it.sourceFilePath }
+                  else ""
     }
     runDetails.text = "Select a check to see details."
     val history =
-        SplitPane(runList, runDetails).apply { orientation = javafx.geometry.Orientation.VERTICAL }
-    val historyPane =
-        VBox(12.0, label("Latest 100 checks · This session only"), history).apply {
-          padding = Insets(16.0, 0.0, 0.0, 0.0)
-          VBox.setVgrow(history, Priority.ALWAYS)
+        SplitPane(runList, runDetails).apply {
+          orientation = javafx.geometry.Orientation.VERTICAL
+          minHeight = 0.0
+          setDividerPositions(0.4)
         }
-    return TabPane(Tab("Current violations", current), Tab("Check history", historyPane)).apply {
+    val historyPane =
+        VBox(
+                12.0,
+                label("Latest 100 checks · This session only"),
+                label(
+                        "Total = all violations in that check. New = first detected or returned after resolution.\nThe first check counts existing violations as new.")
+                    .apply { minHeight = Region.USE_PREF_SIZE },
+                history)
+            .apply {
+              padding = Insets(16.0, 0.0, 0.0, 0.0)
+              VBox.setVgrow(history, Priority.ALWAYS)
+            }
+    return TabPane(Tab("Current violations", current), Tab("History", historyPane)).apply {
       tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
     }
   }

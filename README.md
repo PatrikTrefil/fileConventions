@@ -30,7 +30,7 @@ On Windows, **Run File Conventions** is checked by default on the installer's fi
 
 Otherwise, launch it from your application menu or shortcut. Open it again after signing in: installation does not enable automatic startup.
 
-Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher warning. Linux needs a graphical desktop. Desktop alerts require system tray support and notifications enabled in your OS. Without a supported tray, you can still review results in the open app.
+Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher warning. Linux needs a graphical desktop. System notifications require system tray support and notifications enabled in your OS. Without a supported tray, you can still review results in the open app.
 
 ## How it works
 
@@ -40,7 +40,7 @@ Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher wa
 - Keeps monitoring when you close the window if a system tray is available. Otherwise, keep the window open. Use **Quit** to stop.
 - Use **Pause** / **Resume** to control automatic checks for a rule. **Check now** still works as a one-time check while paused. Removing a rule leaves its files untouched.
 - Copy a violating file's path with **Copy selected path**, then fix the name yourself. Resolved entries disappear on the next check. Failed scans retain previous successful results with a warning that they may be out of date.
-- **Check history** keeps the latest 100 checks for troubleshooting until you quit.
+- **History** keeps the latest 100 checks until you quit. Each entry shows the total violations found and how many were newly detected in that check.
 
 Patterns describe **valid names** and match the entire file name, including the extension, case-sensitively:
 

@@ -47,9 +47,12 @@
 .table-row-cell:odd { -fx-background-color: #f8faff; }
 .table-row-cell:filled:selected { -fx-background-color: #e0e9ff; -fx-text-background-color: #193988; }
 .tab-pane > .tab-header-area > .tab-header-background { -fx-background-color: white; -fx-border-color: transparent transparent #dce2ed transparent; }
-.tab { -fx-background-color: #f1f4f9; -fx-padding: 9 16; }
+.tab { -fx-background-color: #f1f4f9; -fx-padding: 9 16; -fx-border-color: transparent; -fx-border-width: 0 0 2 0; }
 .tab:selected { -fx-background-color: #e8eefe; }
 .tab:selected .tab-label { -fx-text-fill: #244bbd; -fx-font-weight: bold; }
+/* Use the tab edge as the focus cue instead of a second box around its text. */
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator { -fx-border-color: transparent; }
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected { -fx-border-color: #315bd6; }
 .summary { -fx-background-color: #f1f4f9; -fx-background-radius: 6; -fx-padding: 12; -fx-max-width: infinity; }
 .error-summary { -fx-background-color: #fff0eb; -fx-text-fill: #93351b; }
 .success-summary { -fx-background-color: #edf8f2; -fx-text-fill: #246348; }

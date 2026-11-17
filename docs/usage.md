@@ -19,9 +19,9 @@ For Google Drive, choose a folder exposed on your computer by the desktop sync c
 
 All naming checks run locally. File Conventions does not upload file names, contents, rules, or results, and requires no app account or cloud service. Access to a network drive or Google Drive still uses your existing network connection or sync software.
 
-Use **Desktop alerts** above the rules to turn desktop alerts on or off. The setting is saved across restarts; checks and the violations list continue working while alerts are off. Turning alerts back on applies to newly detected violations on subsequent checks.
+Use **System notifications** above the rules to turn OS notifications on or off. The setting is saved across restarts; checks and the violations list continue working while notifications are off. Turning notifications back on applies to newly detected violations on subsequent checks.
 
-**Check history** is a separate troubleshooting view. Each check is listed as an individual run with its rule, timestamp, outcome, and details. The latest 100 runs are kept for the current session.
+**History** lists each check with its rule, timestamp, and outcome. **Total violations** counts all violations found in that check; **new** counts violations newly detected for that rule during the session, including previously resolved violations that return. The first successful check counts existing violations as new. These counts are recorded even when system notifications are off. Failed checks show **Counts unavailable** rather than a misleading zero. Select a check to see both counts and the full list of files that violated the rule at that time. The latest 100 checks are kept for the current session.
 
 When a system tray is available, closing the window leaves the application monitoring in the background. Use the tray menu to reopen it or quit. If your desktop has no supported tray, keep the application window open. Monitoring stops when the application quits or you log out; installation does not automatically configure login startup.
 
