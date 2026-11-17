@@ -8,19 +8,28 @@
   [![Build and release](https://github.com/PatrikTrefil/fileConventions/actions/workflows/main.yml/badge.svg)](https://github.com/PatrikTrefil/fileConventions/actions/workflows/main.yml)
 </div>
 
-File Conventions is a small desktop app for **Windows, macOS, and Linux**. Choose a folder, define valid file names with a wildcard or regular expression, and get desktop alerts when a name does not match. **Your files are never renamed, deleted, or modified.**
+**Spend less time checking file names by hand.** File Conventions is a small desktop app for **Windows, macOS, and Linux** that watches the folders you choose and alerts you when a file name breaks your rules.
 
-![File Conventions showing two file names that break an invoice naming rule](docs/images/app.png)
+Keep monthly reports predictable (`report-2026.pdf`), invoices easy to find (`invoice-2026-001.pdf`), or shared project folders consistent. Describe what a valid name looks like; the app lists the exceptions so you can fix them in your file manager. **It never renames, deletes, or changes your files, and does not read their contents.**
 
-## Get started
+![File Conventions showing a naming rule and two file names that break it](docs/images/app.jpg)
+
+## Get started in a minute
 
 1. [Download the latest release](https://github.com/PatrikTrefil/fileConventions/releases/latest): `.exe` for Windows, `.dmg` for macOS, or `.deb` for Debian/Ubuntu. Java is included; choose the asset for your architecture.
-2. Click **Add rule**, choose a folder and pattern, and set a checking interval in minutes.
-3. View **Current violations**, or click **Check now** to scan immediately.
+2. Open the app and select **Add your first rule**. Give it a name and choose a folder.
+3. Leave the pattern type on **Wildcard (simple)** and try `report-????.pdf`. In **Try a file name**, enter `report-2026.pdf` to see a match, or `notes.txt` to see a violation. Patterns describe names you **allow**.
+4. Set a checking interval and select **Save rule**. The first check starts automatically. Select the rule to see **Current violations**; **Check now** refreshes immediately.
+
+The welcome panel gives you a quick introduction. **How it works** is always available if you need a reminder. Advanced monitoring options stay out of the way until you need them.
+
+![The first-run welcome panel explains the three steps to start monitoring](docs/images/welcome.jpg)
 
 On Windows, select **Run File Conventions** on the installer's final page to launch the app when you click **Finish**.
 
-Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher warning. Linux needs a graphical desktop. Desktop alerts require system tray support and notifications enabled in your OS.
+Otherwise, launch it from your application menu or shortcut. Open it again after signing in: installation does not enable automatic startup.
+
+Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher warning. Linux needs a graphical desktop. Desktop alerts require system tray support and notifications enabled in your OS. Without a supported tray, you can still review results in the open app.
 
 ## How it works
 
@@ -28,6 +37,9 @@ Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher wa
 - Waits 7 seconds after changes by default to let temporary names settle; the delay is adjustable.
 - Alerts once per new violation during a session. If the name is fixed and the violation returns, it alerts again.
 - Keeps monitoring when you close the window if a system tray is available. Otherwise, keep the window open. Use **Quit** to stop.
+- Use **Pause** / **Resume** to control automatic checks for a rule. **Check now** still works as a one-time check while paused. Removing a rule leaves its files untouched.
+- Copy a violating file's path with **Copy selected path**, then fix the name yourself. Resolved entries disappear on the next check. Failed scans retain previous successful results with a warning that they may be out of date.
+- **Check history** keeps the latest 100 checks for troubleshooting until you quit.
 
 Patterns describe **valid names** and match the entire file name, including the extension, case-sensitively:
 
@@ -36,6 +48,8 @@ Patterns describe **valid names** and match the entire file name, including the 
 | Wildcard: `report-????.pdf` | `report-2026.pdf` |
 | Regex: `invoice-[0-9]{4}-[0-9]{3}\.pdf` | `invoice-2026-001.pdf` |
 
-Only regular files are checked; folders and symbolic links are skipped. Enable **Include subfolders** for recursive checks.
+In wildcards, `*` means any number of characters and `?` means exactly one character (not necessarily a digit). Use a regular expression for stricter rules such as digits only. The editor's filename tester shows whether a sample is allowed before you save.
+
+Only regular files in the selected folder are checked; folders and symbolic links are skipped. **Include files in subfolders** is off by default. Enable it for recursive checks. Patterns match names, not paths or contents.
 
 [Usage and troubleshooting](docs/usage.md) · [Build and release instructions](docs/development.md)

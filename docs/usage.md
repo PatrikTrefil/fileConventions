@@ -3,25 +3,25 @@
 ## Use
 
 1. Launch **File Conventions**.
-2. Add a rule with a descriptive name, a folder, and a pattern.
-3. Choose an interval from 1 to 525,600 minutes, optionally enable recursive checking, and save the rule.
+2. Select **Add your first rule** (or **+ Add rule**) and choose a descriptive name and folder. Start with **Wildcard (simple)**, enter a valid-name pattern, and use **Try a file name** to check a sample before saving. **How it works** offers a short introduction at any time.
+3. Choose an interval from 1 to 525,600 minutes, optionally enable **Include files in subfolders**, and select **Save rule**. Enabled rules start their first check automatically.
 4. Select a rule and open **Current violations** to see its violating files, with file names and full paths. Click **Check now** to refresh the list immediately.
 
 The list reflects the latest successful scan of the selected rule. Resolved violations disappear after the next scan. If a scan fails, the previous successful results remain visible with a warning that they may be stale.
 
-Rules default to **Watch for changes + periodic verification**. Creation, deletion, and rename events trigger a background scan after a quiet period of **7 seconds**. Change **Wait after folder changes** in the rule editor to any value from 0 to 3,600 seconds. Further name changes restart that delay, grouping bursts into one scan and avoiding alerts for short-lived temporary names. Content edits alone do not trigger scans. Initial, manual, and scheduled verification scans run immediately; scheduled verification also limits how long a continually busy folder can defer a scan.
+Rules default to **Also check after file names change** in **Monitoring options**. Creation, deletion, and rename events trigger a background scan after a quiet period of **7 seconds**. Change **Wait after changes** in the rule editor to any value from 0 to 3,600 seconds. Further name changes restart that delay, grouping bursts into one scan and avoiding alerts for short-lived temporary names. Content edits alone do not trigger scans. Initial, manual, and scheduled verification scans run immediately; scheduled verification also limits how long a continually busy folder can defer a scan.
 
-Uncheck **Watch for changes + periodic verification** for periodic checks only. The checking interval remains the verification/fallback interval in either mode. Recursive rules also watch newly created subfolders. Event queues are checked approximately once per second, so delivery is near-real-time rather than an exact timer guarantee. Each settled batch rescans the rule's folder scope; large recursive trees can cost more than small folders.
+Uncheck **Also check after file names change** in **Monitoring options** for periodic checks only. The checking interval remains the verification/fallback interval in either mode. Recursive rules also watch newly created subfolders. Event queues are checked approximately once per second, so delivery is near-real-time rather than an exact timer guarantee. Each settled batch rescans the rule's folder scope; large recursive trees can cost more than small folders.
 
 Network shares may not deliver all filesystem events, particularly changes made from other machines. Periodic scans remain enabled even when watching succeeds. Failed watcher registration falls back to scheduled scans and is retried on later checks; disconnected folders are reported as scan errors and checked again at the configured interval. Missed or overflowed events are repaired by rescanning. Network-share behavior still requires testing against your particular server and desktop.
 
-Use **System notifications** in the toolbar to turn desktop alerts on or off. The setting is saved across restarts; checks and the violations list continue working while alerts are off. Turning alerts back on applies to newly detected violations on subsequent checks.
+Use **Desktop alerts** above the rules to turn desktop alerts on or off. The setting is saved across restarts; checks and the violations list continue working while alerts are off. Turning alerts back on applies to newly detected violations on subsequent checks.
 
-**Debug runs** is a separate troubleshooting view. Each check is listed as an individual run with its rule, timestamp, outcome, and details. The latest 100 runs are kept for the current session.
+**Check history** is a separate troubleshooting view. Each check is listed as an individual run with its rule, timestamp, outcome, and details. The latest 100 runs are kept for the current session.
 
 When a system tray is available, closing the window leaves the application monitoring in the background. Use the tray menu to reopen it or quit. If your desktop has no supported tray, keep the application window open. Monitoring stops when the application quits or you log out; installation does not automatically configure login startup.
 
-Rules can be edited, disabled, or deleted. A new violation triggers a notification; unchanged violations do not repeat alerts during the same app session. If a violation disappears and later returns, it triggers a new alert. Starting the app checks again and may notify about existing violations.
+Use **Edit rule**, **Pause** / **Resume**, or **Remove…** to manage a rule. Removing a rule never removes files. **Check now** also works while paused. **Copy selected path** copies a violating file path for use in your file manager. A new violation triggers a notification; unchanged violations do not repeat alerts during the same app session. If a violation disappears and later returns, it triggers a new alert. Starting the app checks again and may notify about existing violations.
 
 ### Naming patterns
 

@@ -46,7 +46,7 @@ class DirectoryMonitor(private val onResult: (CheckResult, Int) -> Unit) : AutoC
       rules = value.toList()
       val ids = value.filter { it.isEnabled }.map { it.id }.toSet()
       nextCheck.keys.retainAll(ids)
-      known.keys.retainAll(ids)
+      known.keys.retainAll(value.map { it.id }.toSet())
       subscriptions.keys
           .toList()
           .filter { id ->
@@ -60,7 +60,7 @@ class DirectoryMonitor(private val onResult: (CheckResult, Int) -> Unit) : AutoC
           .filter { previous[it.id] != it }
           .forEach {
             nextCheck.remove(it.id)
-            known.remove(it.id)
+            if (previous[it.id]?.copy(isEnabled = it.isEnabled) != it) known.remove(it.id)
           }
     }
   }

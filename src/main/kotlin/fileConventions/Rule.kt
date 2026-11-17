@@ -23,19 +23,5 @@ data class Rule(
     matcher()
   }
 
-  fun matcher(): Regex =
-      when (patternLanguage) {
-        PatternLanguage.Regex -> Regex(pattern)
-        PatternLanguage.Wildcard ->
-            Regex(
-                pattern
-                    .map {
-                      when (it) {
-                        '*' -> ".*"
-                        '?' -> "."
-                        else -> Regex.escape(it.toString())
-                      }
-                    }
-                    .joinToString(""))
-      }
+  fun matcher(): Regex = patternLanguage.matcher(pattern)
 }

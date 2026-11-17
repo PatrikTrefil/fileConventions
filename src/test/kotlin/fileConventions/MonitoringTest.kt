@@ -8,6 +8,36 @@ import org.junit.jupiter.api.io.TempDir
 
 class MonitoringTest {
   @Test
+  fun `paused rules allow a manual check and resume automatic monitoring`() {
+    val results = LinkedBlockingQueue<Pair<CheckResult, Int>>()
+    val paused = rule().copy(isEnabled = false, notificationDelaySeconds = 0)
+    Files.writeString(directory.resolve("bad.txt"), "")
+    DirectoryMonitor { result, fresh -> results.add(result to fresh) }
+        .use { monitor ->
+          monitor.updateRules(listOf(paused))
+          assertNull(results.poll(1200, TimeUnit.MILLISECONDS))
+          monitor.checkNow(paused)
+          val manual = assertNotNull(results.poll(5, TimeUnit.SECONDS))
+          assertEquals(1, manual.first.issues.size)
+          assertEquals(1, manual.second)
+          monitor.updateRules(listOf(paused.copy(isEnabled = true)))
+          val resumed = assertNotNull(results.poll(5, TimeUnit.SECONDS))
+          assertTrue(resumed.first.rule.isEnabled)
+          assertEquals(1, resumed.first.issues.size)
+          assertEquals(0, resumed.second, "Resuming must not repeat an unchanged violation")
+          monitor.updateRules(listOf(paused))
+          monitor.checkNow(paused)
+          assertEquals(0, assertNotNull(results.poll(5, TimeUnit.SECONDS)).second)
+          Files.delete(directory.resolve("bad.txt"))
+          monitor.checkNow(paused)
+          assertEquals(0, assertNotNull(results.poll(5, TimeUnit.SECONDS)).second)
+          Files.writeString(directory.resolve("bad.txt"), "")
+          monitor.checkNow(paused)
+          assertEquals(1, assertNotNull(results.poll(5, TimeUnit.SECONDS)).second)
+        }
+  }
+
+  @Test
   fun `watch events detect a violation and resolution before periodic interval`() {
     val results = LinkedBlockingQueue<CheckResult>()
     DirectoryMonitor { result, _ -> results.add(result) }
