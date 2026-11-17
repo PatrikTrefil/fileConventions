@@ -20,6 +20,8 @@ bash ./gradlew jpackage
 
 Native installers are written to `build/jpackage/`. Build on the target operating system: `jpackage` does not cross-compile installers. Windows packaging additionally requires **WiX Toolset 3** on `PATH`; Linux Debian packaging requires `fakeroot` and Debian packaging tools.
 
+The Windows installer's final page includes an unchecked **Run File Conventions** checkbox. Selecting it launches the app when **Finish** is clicked after installation. Silent installs, repair, and uninstall do not launch it. The build extends the running JDK 17's WiX template with `packaging/windows/launch-application.xml`; use JDK 17 to run Gradle as well as compile the app. Check the final-page checkbox and launch behavior interactively when accepting a Windows release.
+
 ## Publish a release
 
 The GitHub Actions workflow tests and builds native installers on Windows, macOS, and Linux for pushes and pull requests. Installer artifacts are available from each successful workflow run.

@@ -1,0 +1,12 @@
+<!-- Product children inserted into the JDK 17 main.wxs template.
+     The checkbox is initially unchecked. Only an interactive successful installation
+     can launch the app; silent installs, repair, and uninstall do not run it. -->
+<Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Run File Conventions" />
+<CustomAction Id="LaunchFileConventions"
+              Directory="INSTALLDIR"
+              ExeCommand="&quot;[INSTALLDIR]File Conventions.exe&quot;"
+              Execute="immediate" Impersonate="yes" Return="asyncNoWait" />
+<UI>
+    <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
+             Value="LaunchFileConventions" Order="1">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND NOT REMOVE</Publish>
+</UI>

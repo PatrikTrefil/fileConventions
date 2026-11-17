@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 plugins {
     id("application")
     kotlin("jvm") version "1.9.23"
@@ -38,6 +40,33 @@ javafx {
     modules("javafx.controls", "javafx.fxml")
 }
 
+val windowsInstallerResources = layout.buildDirectory.dir("windows-installer-resources")
+val prepareWindowsInstallerResources by tasks.registering {
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isWindows }
+    val jpackageModule = file("${System.getProperty("java.home")}/jmods/jdk.jpackage.jmod")
+    val launchUi = file("packaging/windows/launch-application.xml")
+    inputs.files(jpackageModule, launchUi)
+    outputs.dir(windowsInstallerResources)
+    doLast {
+        // Extend the packaging JDK's template rather than maintaining a stale copy of it.
+        val template = ZipFile(jpackageModule).use { archive ->
+            val entry = archive.getEntry("classes/jdk/jpackage/internal/resources/main.wxs")
+                ?: error("The packaging JDK does not contain the expected Windows WiX template")
+            archive.getInputStream(entry).bufferedReader().use { it.readText() }
+        }
+        check(template.contains("</Product>")) { "Unsupported jpackage WiX template" }
+        val destination = windowsInstallerResources.get().asFile
+        destination.mkdirs()
+        destination.resolve("main.wxs").writeText(
+            template.replace("</Product>", launchUi.readText() + "\n</Product>")
+        )
+    }
+}
+
+tasks.named("jpackage") {
+    dependsOn(prepareWindowsInstallerResources)
+}
+
 runtime {
     jpackage {
         val currentOs = org.gradle.internal.os.OperatingSystem.current()
@@ -45,7 +74,8 @@ runtime {
         val imgType = if (currentOs.isWindows) "ico" else if (currentOs.isMacOsX) "icns" else "png"
         imageOptions.addAll(arrayOf("--icon", "src/main/resources/file-check-white.$imgType"))
 
-        installerOptions.addAll(arrayOf("--resource-dir", "src/main/resources"))
+        val resourceDir = if (currentOs.isWindows) windowsInstallerResources.get().asFile.path else "src/main/resources"
+        installerOptions.addAll(arrayOf("--resource-dir", resourceDir))
         installerOptions.addAll(arrayOf("--vendor", "Trefil Software"))
 
         val pkgName = "file-conventions"

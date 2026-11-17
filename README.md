@@ -18,6 +18,8 @@ File Conventions is a small desktop app for **Windows, macOS, and Linux**. Choos
 2. Click **Add rule**, choose a folder and pattern, and set a checking interval in minutes.
 3. View **Current violations**, or click **Check now** to scan immediately.
 
+On Windows, select **Run File Conventions** on the installer's final page to launch the app when you click **Finish**.
+
 Installers are unsigned, so Windows or macOS may show an unfamiliar-publisher warning. Linux needs a graphical desktop. Desktop alerts require system tray support and notifications enabled in your OS.
 
 ## How it works
