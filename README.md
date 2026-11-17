@@ -12,6 +12,9 @@
 
 Keep monthly reports predictable (`report-2026.pdf`), invoices easy to find (`invoice-2026-001.pdf`), or shared project folders consistent. Describe what a valid name looks like; the app lists the exceptions so you can fix them in your file manager. **It never renames, deletes, or changes your files, and does not read their contents.**
 
+- **Use the folders you already work in.** Monitor local folders, mounted network drives, and Google Drive folders available through your desktop sync client. Just choose a folder your computer can access.
+- **Runs fully locally.** Checks, rules, and results stay on your computer. No File Conventions account, cloud service, or file uploads are needed. Your existing network or cloud software handles access and syncing.
+
 ![File Conventions showing a naming rule and two file names that break it](docs/images/app.png)
 
 ## Get started in a minute
@@ -49,5 +52,7 @@ Patterns describe **valid names** and match the entire file name, including the 
 In wildcards, `*` means any number of characters and `?` means exactly one character (not necessarily a digit). Use a regular expression for stricter rules such as digits only. The editor's filename tester shows whether a sample is allowed before you save.
 
 Only regular files in the selected folder are checked; folders and symbolic links are skipped. **Include files in subfolders** is off by default. Enable it for recursive checks. Patterns match names, not paths or contents.
+
+Network and Google Drive folders must be mounted or synced, readable, and exposed as regular filesystem folders; the app does not connect to the Google Drive website or API. Remote changes may appear only after syncing and the next periodic check, since filesystem change events vary by provider. See [usage and troubleshooting](docs/usage.md) for details.
 
 [Usage and troubleshooting](docs/usage.md) · [Build and release instructions](docs/development.md)

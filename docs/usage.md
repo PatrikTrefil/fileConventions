@@ -15,6 +15,10 @@ Uncheck **Also check after file names change** in **Monitoring options** for per
 
 Network shares may not deliver all filesystem events, particularly changes made from other machines. Periodic scans remain enabled even when watching succeeds. Failed watcher registration falls back to scheduled scans and is retried on later checks; disconnected folders are reported as scan errors and checked again at the configured interval. Missed or overflowed events are repaired by rescanning. Network-share behavior still requires testing against your particular server and desktop.
 
+For Google Drive, choose a folder exposed on your computer by the desktop sync client. The app checks regular files visible in that filesystem folder; it does not use the Google Drive website or API. Changes made elsewhere become detectable when the sync client exposes them locally, and may wait until the next periodic scan. Availability of cloud-only items and change events depends on your sync client and OS. Keep the drive mounted and the client running when needed for access. Compatibility with your particular network share or sync setup should be checked with **Check now**.
+
+All naming checks run locally. File Conventions does not upload file names, contents, rules, or results, and requires no app account or cloud service. Access to a network drive or Google Drive still uses your existing network connection or sync software.
+
 Use **Desktop alerts** above the rules to turn desktop alerts on or off. The setting is saved across restarts; checks and the violations list continue working while alerts are off. Turning alerts back on applies to newly detected violations on subsequent checks.
 
 **Check history** is a separate troubleshooting view. Each check is listed as an individual run with its rule, timestamp, outcome, and details. The latest 100 runs are kept for the current session.
