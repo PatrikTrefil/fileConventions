@@ -12,7 +12,7 @@
 
 Keep monthly reports predictable (`report-2026.pdf`), invoices easy to find (`invoice-2026-001.pdf`), or shared project folders consistent. Describe what a valid name looks like; the app lists the exceptions so you can fix them in your file manager. **It never renames, deletes, or changes your files, and does not read their contents.**
 
-![File Conventions showing a naming rule and two file names that break it](docs/images/app.jpg)
+![File Conventions showing a naming rule and two file names that break it](docs/images/app.png)
 
 ## Get started in a minute
 
@@ -22,8 +22,6 @@ Keep monthly reports predictable (`report-2026.pdf`), invoices easy to find (`in
 4. Set a checking interval and select **Save rule**. The first check starts automatically. Select the rule to see **Current violations**; **Check now** refreshes immediately.
 
 The welcome panel gives you a quick introduction. **How it works** is always available if you need a reminder. Advanced monitoring options stay out of the way until you need them.
-
-![The first-run welcome panel explains the three steps to start monitoring](docs/images/welcome.jpg)
 
 On Windows, select **Run File Conventions** on the installer's final page to launch the app when you click **Finish**.
 
