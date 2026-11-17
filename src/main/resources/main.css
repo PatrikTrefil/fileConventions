@@ -3,6 +3,22 @@
     -fx-font-size: 18;
 }
 
+.root {
+    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-font-size: 13px;
+    -fx-background-color: #f4f7fa;
+}
+
+.button {
+    -fx-background-radius: 5;
+    -fx-padding: 8 12;
+    -fx-cursor: hand;
+}
+
+.list-cell {
+    -fx-padding: 12;
+}
+
 .vbox-col {
     -fx-padding: 0 10;
 }

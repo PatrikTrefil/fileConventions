@@ -1,503 +1,382 @@
 package fileConventions
 
-import com.trefilsoftware.fileConventions.Issue
-import com.trefilsoftware.fileConventions.PatternLanguage
-import com.trefilsoftware.fileConventions.Rule
-import com.trefilsoftware.fileConventions.TrayIcon
-import java.awt.Desktop
-import java.awt.event.MouseEvent
-import java.awt.event.MouseListener
+import com.trefilsoftware.fileConventions.*
+import java.awt.SystemTray
+import java.awt.Toolkit
 import java.io.File
-import java.util.*
+import java.nio.channels.FileChannel
+import java.nio.channels.FileLock
+import java.nio.file.StandardOpenOption
 import javafx.application.Application
 import javafx.application.Platform
-import javafx.beans.binding.Bindings
-import javafx.beans.property.SimpleObjectProperty
-import javafx.beans.property.SimpleStringProperty
 import javafx.collections.FXCollections
-import javafx.collections.ListChangeListener
-import javafx.event.EventHandler
 import javafx.geometry.Insets
-import javafx.geometry.Pos
-import javafx.scene.Node
-import javafx.scene.Parent
 import javafx.scene.Scene
 import javafx.scene.control.*
 import javafx.scene.image.Image
-import javafx.scene.input.InputEvent
-import javafx.scene.input.KeyCode
 import javafx.scene.layout.*
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
-import javafx.util.Callback
-import javafx.util.Duration
 import net.harawata.appdirs.AppDirsFactory
-import org.hibernate.SessionFactory
-import org.hibernate.boot.MetadataSources
-import org.hibernate.boot.registry.StandardServiceRegistryBuilder
-import org.hibernate.cfg.Configuration
-
-// TODO: split mainpage into multiple classes
 
 class MainPage : Application() {
-  private val defaultWindowWidth = 840.0
-  private val defaultWindowHeight = 480.0
-  private val headingCssClass = "heading"
-  private val errorTextFieldCssClass = "error-text-field"
-  private val errorLabelCssClass = "error-label"
-  private val vboxColStyleClass = "vbox-col"
-
-  private val ruleList = FXCollections.observableArrayList<Rule>()
-  private var directoryToMonitor = SimpleObjectProperty<File?>(null)
-  private val directoryToMonitorChooser = DirectoryChooser()
-  private val selectedRule = SimpleObjectProperty<Rule?>(null)
-  private val ruleListView = ListView(ruleList)
-  private val issuesList = FXCollections.observableArrayList<Issue>()
-  private val issuesTableView = TableView(issuesList)
+  private val rules = FXCollections.observableArrayList<Rule>()
+  private val list = ListView(rules)
+  private val violations = FXCollections.observableArrayList<Issue>()
+  private val issues = TableView(violations)
+  private val summary = Label("Select a rule to see its current violations.")
+  private val runs = FXCollections.observableArrayList<CheckResult>()
+  private val runList = ListView(runs)
+  private val runDetails =
+      TextArea().apply {
+        isEditable = false
+        isWrapText = true
+      }
+  private val notifications = CheckBox("System notifications")
+  private val status = Label("Ready")
+  private val results = mutableMapOf<String, CheckResult>()
+  private val store =
+      RuleStore(
+          File(
+              AppDirsFactory.getInstance()
+                  .getUserDataDir("File Conventions", null, "Trefil Software")))
+  private lateinit var monitor: DirectoryMonitor
+  private val settings by lazy { SettingsStore(store.directory) }
+  private var tray: java.awt.TrayIcon? = null
+  private var channel: FileChannel? = null
+  private var lock: FileLock? = null
 
   override fun start(stage: Stage) {
-    setupRuleListPersistence()
-
-    println("Setting up UI...")
-
-    val userInterface = createUserInterface(stage)
-    val scene = Scene(userInterface, defaultWindowWidth, defaultWindowHeight)
-    scene.stylesheets.add("main.css")
-
-    stage.title = "File conventions"
-    stage.scene = scene
-    stage.icons.add(Image(object {}.javaClass.getResourceAsStream("/file-check-white.png")))
-    stage.show()
-
-    val trayIcon =
-        addSystemTrayIcon(stage) // This will be used to send notifications from RuleBreakNotifier
-
-    println("Finished setting up UI")
-  }
-
-  private fun createUserInterface(stage: Stage): Parent {
-    val tabPane = TabPane()
-    tabPane.tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
-    tabPane.tabs.addAll(Tab("Rules", createRulesPane(stage)), Tab("Issues", createIssuesPane()))
-    return tabPane
-  }
-
-  private fun createIssuesPane(): Node {
-    val issueHeading = Label("Detected issues")
-    issueHeading.styleClass.add(headingCssClass)
-
-    val detectedAtColumn = TableColumn<Issue, String>("Detected at")
-    detectedAtColumn.cellValueFactory = Callback {
-      SimpleStringProperty(it.value.source.lastCheckAt.toString())
-    }
-
-    val sourceRuleColumn = TableColumn<Issue, String>("Violated rule name")
-    sourceRuleColumn.cellValueFactory = Callback { SimpleStringProperty(it.value.source.name) }
-
-    val sourceFilePathColumn = TableColumn<Issue, String>("Source file")
-    sourceFilePathColumn.cellValueFactory = Callback {
-      SimpleStringProperty(it.value.sourceFilePath)
-    }
-
-    issuesTableView.columns.addAll(sourceFilePathColumn, sourceRuleColumn, detectedAtColumn)
-    issuesTableView.columnResizePolicy = TableView.CONSTRAINED_RESIZE_POLICY
-
-    val issuePaneVbox = VBox(issueHeading, issuesTableView)
-
-    issuePaneVbox.styleClass.add(vboxColStyleClass)
-    return issuePaneVbox
-  }
-
-  private fun createRulesPane(stage: Stage): Node {
-    val mainGrid = GridPane()
-    mainGrid.padding = Insets(0.0, 10.0, 10.0, 10.0)
-
-    val colConstraints = ColumnConstraints()
-    colConstraints.hgrow = Priority.ALWAYS
-    mainGrid.columnConstraints.add(colConstraints)
-    mainGrid.columnConstraints.add(colConstraints)
-    mainGrid.columnConstraints.add(colConstraints)
-
-    val rowConstraints = RowConstraints()
-    rowConstraints.vgrow = Priority.ALWAYS
-    mainGrid.rowConstraints.add(rowConstraints)
-
-    // TODO: show indicator if a check is currently running
-
-    mainGrid.add(createLeftColumn(stage), 0, 0)
-
-    val rightColVBox = createRightColumn()
-    mainGrid.add(rightColVBox, 2, 0)
-
-    mainGrid.add(createMiddleColumn(), 1, 0)
-
-    return mainGrid
-  }
-
-  private fun setupRuleListPersistence() {
-    println("Setting up persistent storage...")
-
-    val userDataDir =
-        AppDirsFactory.getInstance().getUserDataDir("File Conventions", "1.0.0", "Patrik Trefil")
-    println("Storage path: $userDataDir")
-
-    // We manually load hibernate.properties and then set the db url at runtime based on the user's
-    // OS
-    val config = Configuration()
-    val properties = Properties()
-    properties.load(ClassLoader.getSystemResourceAsStream("hibernate.properties"))
-    config.addProperties(properties)
-    config.setProperty(
-        "hibernate.connection.url", "jdbc:hsqldb:file:${userDataDir};DB_CLOSE_DELAY=-1")
-
-    val registry = StandardServiceRegistryBuilder().applySettings(config.properties).build()
-    // A SessionFactory is set up once for an application!
-    val sessionFactory: SessionFactory
     try {
-      sessionFactory =
-          MetadataSources(registry)
-              .addAnnotatedClass(Rule::class.java)
-              .buildMetadata()
-              .buildSessionFactory()
+      store.directory.mkdirs()
+      channel =
+          FileChannel.open(
+              File(store.directory, "app.lock").toPath(),
+              StandardOpenOption.CREATE,
+              StandardOpenOption.WRITE)
+      lock = channel!!.tryLock()
+      if (lock == null) {
+        error("File Conventions is already running. Open it from the system tray.")
+        Platform.exit()
+        return
+      }
+      rules.addAll(store.load())
+      notifications.isSelected = settings.loadNotificationsEnabled()
     } catch (e: Exception) {
-      // The registry would be destroyed by the SessionFactory, but we
-      // had trouble building the SessionFactory so destroy it manually.
-      StandardServiceRegistryBuilder.destroy(registry)
+      error("Unable to load settings: ${e.message}\nSettings have been left untouched.")
+      Platform.exit()
       return
     }
-    sessionFactory.inTransaction {
-      val persistedRules = it.createSelectionQuery("SELECT r FROM Rule r", Rule::class.java).list()
-      ruleList.addAll(persistedRules)
+    monitor = DirectoryMonitor { result, fresh ->
+      Platform.runLater {
+        if (rules.none { it == result.rule }) return@runLater
+        runs.add(0, result)
+        if (runs.size > 100) runs.removeAt(runs.lastIndex)
+        if (result.error == null) results[result.rule.id] = result
+        renderResults()
+        status.text =
+            result.error
+                ?: "Checked ${result.rule.name}: ${result.issues.size} violation(s) at ${result.checkedAt}"
+        if (fresh > 0 && notifications.isSelected)
+            tray?.displayMessage(
+                "File Conventions",
+                "${result.rule.name}: $fresh new naming violation(s). Open the app for details.",
+                java.awt.TrayIcon.MessageType.WARNING)
+      }
     }
-
-    ruleList.addListener(
-        ListChangeListener { change ->
-          while (change.next()) {
-            if (change.wasAdded()) {
-              sessionFactory.inTransaction { for (value in change.addedSubList) it.persist(value) }
-            } else if (change.wasRemoved()) {
-              sessionFactory.inTransaction { for (value in change.removed) it.remove(value) }
-            } else if (change.wasUpdated()) {
-              sessionFactory.inTransaction {
-                for (i in change.from..change.to) it.merge(change.list[i])
+    list.setCellFactory {
+      object : ListCell<Rule>() {
+        override fun updateItem(item: Rule?, empty: Boolean) {
+          super.updateItem(item, empty)
+          text =
+              if (empty || item == null) null
+              else
+                  "${if (item.isEnabled) "Enabled:" else "Paused:"} ${item.name}\n${item.pathToMonitor} · every ${item.timeBetweenChecksInMinutes} min"
+        }
+      }
+    }
+    list.placeholder = Label("Add a rule to start monitoring folders")
+    val add = Button("Add rule").apply { setOnAction { edit(stage, null) } }
+    val edit =
+        Button("Edit").apply {
+          setOnAction { list.selectionModel.selectedItem?.let { edit(stage, it) } }
+        }
+    val delete =
+        Button("Delete").apply {
+          setOnAction {
+            list.selectionModel.selectedItem?.let { selected ->
+              if (commit(rules.filter { it.id != selected.id })) {
+                results.remove(selected.id)
+                renderResults()
               }
             }
           }
-        })
-
-    println("Finished setting up persistent storage")
-  }
-
-  private fun addSystemTrayIcon(stage: Stage): TrayIcon {
-    val trayIcon = TrayIcon(stage, object {}.javaClass.getResource("/file-check-white.png"), 64, 64)
-    val toggleStageVisibility = { if (stage.isShowing) stage.hide() else stage.show() }
-
-    trayIcon.setMouseListener(
-        object : MouseListener {
-          override fun mouseClicked(e: MouseEvent) {
-            if (e.button == MouseEvent.BUTTON1 && !stage.isShowing)
-                Platform.runLater { stage.show() }
-          }
-
-          override fun mousePressed(e: MouseEvent) {}
-
-          override fun mouseReleased(e: MouseEvent) {}
-
-          override fun mouseEntered(e: MouseEvent) {}
-
-          override fun mouseExited(e: MouseEvent) {}
-        })
-
-    val showOrHideMenuItem = MenuItem("Show/hide")
-    showOrHideMenuItem.setOnAction { toggleStageVisibility() }
-
-    val quitAppMenuItem = MenuItem("Quit application")
-    quitAppMenuItem.setOnAction {
-      // Cleanly stop all threads
-      Platform.exit()
-      trayIcon.hide()
-    }
-
-    trayIcon.addMenuItems(showOrHideMenuItem, quitAppMenuItem)
-
-    trayIcon.setTrayIconTooltip(stage.title)
-
-    trayIcon.show()
-
-    return trayIcon
-  }
-
-  private fun createLeftColumn(stage: Stage): VBox {
-    val addRuleHeading = Label("New rule")
-    addRuleHeading.styleClass.add(headingCssClass)
-
-    val ruleNameLabel = Label("Rule name")
-    val ruleNameTextField = TextField()
-    ruleNameTextField.textProperty().addListener { _ ->
-      ruleNameTextField.styleClass.remove(errorTextFieldCssClass)
-    }
-
-    val patternLanguageLabel = Label("Pattern language")
-    val patternLanguageCombobox = ComboBox<PatternLanguage>()
-    patternLanguageCombobox.items.addAll(PatternLanguage.Wildcard, PatternLanguage.Regex)
-    patternLanguageCombobox.selectionModel.select(0)
-
-    val patternLabel = Label("Pattern")
-    val tooltip =
-        Tooltip(
-            """Regular expression or wildcard pattern to check for.
-      |
-      |Regular expression examples:
-      |  - "^[A-Z]+$" matches non-empty strings that contain only uppercase letters
-      |  - "^.*\.txt$" matches strings that end with .txt
-      |Wildcard examples:
-      |  - "*.txt" matches strings that end with .txt
-    """
-                .trimMargin())
-    tooltip.showDuration = Duration.INDEFINITE
-    tooltip.showDelay = Duration(200.0)
-    val patternHelpButton = Button("?")
-    patternHelpButton.style = "-fx-padding: 0 5 0 5; -fx-border-radius: 50%;"
-    Tooltip.install(patternHelpButton, tooltip)
-    val patternTextField = TextField()
-    patternTextField.textProperty().addListener { _ ->
-      patternTextField.styleClass.remove(errorTextFieldCssClass)
-    }
-
-    val directoryToMonitorLabel = Label("Directory to monitor")
-    val directoryToMonitorOpenChooserButton = Button("Browse")
-    // this button loses padding for some reason
-    val actionHandler =
-        EventHandler<InputEvent> {
-          val newDirectoryToMonitor = directoryToMonitorChooser.showDialog(stage)
-          if (newDirectoryToMonitor != null) {
-            directoryToMonitor.value = newDirectoryToMonitor
+        }
+    val check =
+        Button("Check now").apply {
+          setOnAction {
+            list.selectionModel.selectedItem?.let {
+              status.text = "Checking ${it.name}…"
+              monitor.checkNow(it)
+            }
           }
         }
-    directoryToMonitorOpenChooserButton.onKeyPressed = actionHandler
-    directoryToMonitorOpenChooserButton.onMouseClicked = actionHandler
-    val directoryToMonitorValueLabel = Label()
-    directoryToMonitorValueLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                { directoryToMonitor.value?.name ?: "No directory selected" }, directoryToMonitor))
-    directoryToMonitor.addListener { _, _, _ ->
-      directoryToMonitorValueLabel.styleClass.remove(errorLabelCssClass)
+    list.selectionModel.selectedItemProperty().addListener { _, _, value ->
+      edit.isDisable = value == null
+      delete.isDisable = value == null
+      check.isDisable = value == null
+      renderResults()
     }
-
-    val timeBetweenChecksInMinutesLabel = Label("Time between checks in minutes")
-    val timeBetweenChecksInMinutesTextField = TextField("60")
-
-    val addRuleBtn = Button("Add rule")
-    addRuleBtn.maxWidth = Double.MAX_VALUE
-    addRuleBtn.padding = Insets(5.0)
-    addRuleBtn.setOnMouseClicked {
-      val directoryToMonitorValue = directoryToMonitor.value
-
-      if (ruleNameTextField.text.isBlank()) {
-        ruleNameTextField.styleClass.add(errorTextFieldCssClass)
-        return@setOnMouseClicked
-      } else if (patternTextField.text.isBlank()) {
-        patternTextField.styleClass.add(errorTextFieldCssClass)
-        return@setOnMouseClicked
-      } else if (directoryToMonitorValue == null) {
-        directoryToMonitorValueLabel.styleClass.add(errorLabelCssClass)
-        return@setOnMouseClicked
-      }
-
-      val pattern: String
+    edit.isDisable = true
+    delete.isDisable = true
+    check.isDisable = true
+    val quit = Button("Quit").apply { setOnAction { Platform.exit() } }
+    notifications.setOnAction {
       try {
-        pattern = patternTextField.text
+        settings.saveNotificationsEnabled(notifications.isSelected)
       } catch (e: Exception) {
-        patternTextField.styleClass.add(errorTextFieldCssClass)
-        return@setOnMouseClicked
+        notifications.isSelected = !notifications.isSelected
+        error("Unable to save notification setting: ${e.message}")
       }
-
-      val patternLanguage = patternLanguageCombobox.value
-
-      val timeBetweenChecksInMinutes: Int
-      try {
-        timeBetweenChecksInMinutes = timeBetweenChecksInMinutesTextField.text.toInt()
-      } catch (e: NumberFormatException) {
-        timeBetweenChecksInMinutesTextField.styleClass.add(errorTextFieldCssClass)
-        return@setOnMouseClicked
-      }
-
-      ruleList.add(
-          Rule(
-              ruleNameTextField.text,
-              pattern,
-              patternLanguage,
-              true,
-              timeBetweenChecksInMinutes,
-              directoryToMonitorValue))
-      patternTextField.text = ""
-      ruleNameTextField.text = ""
-      directoryToMonitor.value = null
     }
-
-    val directoryToMonitorHBox =
-        HBox(directoryToMonitorOpenChooserButton, directoryToMonitorValueLabel)
-    directoryToMonitorHBox.alignment = Pos.CENTER_LEFT
-    directoryToMonitorHBox.spacing = 10.0
-
-    val contentVbox =
+    val toolbar = HBox(8.0, add, edit, delete, check, notifications, quit)
+    val heading = Label("File Conventions").apply { styleClass.add("heading") }
+    val split = SplitPane(list, createResultsPane()).apply { setDividerPositions(0.35) }
+    val root =
         VBox(
-            addRuleHeading,
-            VBox(
-                ruleNameLabel,
-                ruleNameTextField,
-            ),
-            VBox(patternLanguageLabel, patternLanguageCombobox),
-            VBox(
-                HBox(patternLabel, patternHelpButton),
-                patternTextField,
-            ),
-            VBox(
-                directoryToMonitorLabel,
-                directoryToMonitorHBox,
-            ),
-            VBox(timeBetweenChecksInMinutesLabel, timeBetweenChecksInMinutesTextField))
-    contentVbox.spacing = 7.0
-
-    val leftColVBox = VBox(contentVbox, addRuleBtn)
-    leftColVBox.styleClass.add(vboxColStyleClass)
-    leftColVBox.spacing = 20.0
-
-    return leftColVBox
-  }
-
-  private fun createMiddleColumn(): VBox {
-    val ruleListHeading = Label("Rule list")
-    ruleListHeading.styleClass.add(headingCssClass)
-    ruleListView.cellFactory = Callback { RuleListCell() }
-    ruleListView.setOnKeyPressed { e ->
-      if (e.code == KeyCode.DELETE)
-          ruleList.remove(ruleListView.selectionModel.selectedItemProperty().value)
-    }
-
-    selectedRule.bind(ruleListView.selectionModel.selectedItemProperty())
-
-    VBox.setVgrow(ruleListView, Priority.ALWAYS)
-    val middleColVBox = VBox(ruleListHeading, ruleListView)
-    middleColVBox.styleClass.add(vboxColStyleClass)
-    return middleColVBox
-  }
-
-  private fun createRuleDetailsContentVBox(): VBox {
-    val nameLabel = Label()
-    nameLabel
-        .textProperty()
-        .bind(Bindings.createStringBinding({ "Name: ${selectedRule.value?.name}" }, selectedRule))
-
-    val patternLanguageLabel = Label()
-    patternLanguageLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                { "Pattern language: ${selectedRule.value?.patternLanguage}" }, selectedRule))
-
-    val patternLabel = Label()
-    patternLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding({ "Regex: ${selectedRule.value?.pattern}" }, selectedRule))
-
-    val isEnabledValueLabel = Label()
-    isEnabledValueLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                { "Is enabled?: ${if (selectedRule.value?.isEnabled == true) "yes" else "no"}" },
-                selectedRule))
-
-    val timeBetweenChecksInMinuteValue = Label()
-    timeBetweenChecksInMinuteValue
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                {
-                  "Time between checks: ${selectedRule.value?.timeBetweenChecksInMinutes.toString()} mins"
-                },
-                selectedRule))
-
-    val pathToMonitorLabel = Label()
-    pathToMonitorLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                { "Path to monitor: ${selectedRule.value?.pathToMonitor}" }, selectedRule))
-
-    val lastCheckAtLabel = Label()
-    lastCheckAtLabel
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                { "Last check at: ${selectedRule.value?.lastCheckAt ?: "never"}" }, selectedRule))
-
-    val runCheckManuallyButton = Button("Run manually") // TODO: make this button work
-    val deleteButton = Button("Delete")
-    deleteButton.onMouseClicked = EventHandler {
-      ruleList.remove(selectedRule.value)
-      ruleListView.selectionModel.clearSelection()
-    }
-    val openMonitoredFolderButton = Button("Open monitored folder")
-    openMonitoredFolderButton.onMouseClicked = EventHandler {
-      val pathToMonitor = selectedRule.value?.pathToMonitor
-      if (pathToMonitor != null) {
-        Desktop.getDesktop().open(pathToMonitor)
+            12.0,
+            heading,
+            Label("Keep file names consistent. Checks continue while this window is hidden."),
+            toolbar,
+            split,
+            status)
+    root.padding = Insets(20.0)
+    VBox.setVgrow(split, Priority.ALWAYS)
+    stage.title = "File Conventions"
+    stage.scene = Scene(root, 960.0, 600.0).apply { stylesheets.add("main.css") }
+    stage.icons.add(Image(javaClass.getResourceAsStream("/file-check-white.png")))
+    setupTray(stage)
+    Platform.setImplicitExit(tray == null)
+    stage.setOnCloseRequest {
+      if (tray != null) {
+        it.consume()
+        stage.hide()
       }
     }
-
-    val buttonsHBox = HBox(runCheckManuallyButton, deleteButton, openMonitoredFolderButton)
-    buttonsHBox.spacing = 5.0
-
-    val ruleDetailsContentVBox =
-        VBox(
-            nameLabel,
-            patternLanguageLabel,
-            patternLabel,
-            isEnabledValueLabel,
-            timeBetweenChecksInMinuteValue,
-            pathToMonitorLabel,
-            lastCheckAtLabel,
-            buttonsHBox)
-    ruleDetailsContentVBox.spacing = 5.0
-
-    return ruleDetailsContentVBox
+    stage.show()
+    if (tray == null)
+        status.text = "System tray unavailable. Keep this window open to monitor folders."
+    monitor.updateRules(rules.toList())
   }
 
-  private fun createRightColumn(): VBox {
-    val ruleDetailsHeading = Label("Rule details")
-    ruleDetailsHeading.styleClass.add(headingCssClass)
-    val noRuleSelectedLabel = Label("No rule selected")
-    noRuleSelectedLabel.id = "no-rule-selected-label"
-    val noRuleSelectedVBox = VBox(noRuleSelectedLabel)
-    noRuleSelectedVBox.alignment = Pos.CENTER // Horizontal centering
-    VBox.setVgrow(noRuleSelectedVBox, Priority.ALWAYS)
-
-    val rightColVBox = VBox(ruleDetailsHeading, noRuleSelectedVBox)
-    rightColVBox.styleClass.add(vboxColStyleClass)
-
-    val ruleDetailsContentVBox = createRuleDetailsContentVBox()
-    selectedRule.addListener { observableValue, _, _ ->
-      if (observableValue.value == null) rightColVBox.children[1] = noRuleSelectedVBox
-      else rightColVBox.children[1] = ruleDetailsContentVBox
-    }
-
-    return rightColVBox
-  }
-}
-
-class RuleListCell : ListCell<Rule>() {
-  override fun updateItem(item: Rule?, empty: Boolean) {
-    super.updateItem(item, empty)
-    text =
-        if (empty || item == null) {
-          null
-        } else {
-          item.name
+  private fun createResultsPane(): TabPane {
+    val fileColumn =
+        TableColumn<Issue, String>("File name").apply {
+          setCellValueFactory {
+            javafx.beans.property.SimpleStringProperty(File(it.value.sourceFilePath).name)
+          }
+          prefWidth = 180.0
         }
+    val pathColumn =
+        TableColumn<Issue, String>("Full path").apply {
+          setCellValueFactory {
+            javafx.beans.property.SimpleStringProperty(it.value.sourceFilePath)
+          }
+          prefWidth = 400.0
+        }
+    issues.columns.addAll(fileColumn, pathColumn)
+    issues.placeholder = Label("No violations to display")
+    val current = VBox(8.0, summary, issues).apply { VBox.setVgrow(issues, Priority.ALWAYS) }
+    summary.isWrapText = true
+    runList.placeholder = Label("No checks have run yet")
+    runList.setCellFactory {
+      object : ListCell<CheckResult>() {
+        override fun updateItem(item: CheckResult?, empty: Boolean) {
+          super.updateItem(item, empty)
+          text =
+              if (empty || item == null) null
+              else
+                  "${item.checkedAt} — ${item.rule.name}\n${if (item.error != null) "Failed" else "${item.issues.size} violation(s)"}"
+        }
+      }
+    }
+    runList.selectionModel.selectedItemProperty().addListener { _, _, run ->
+      runDetails.text =
+          if (run == null) "Select a run to inspect its details."
+          else
+              "Rule: ${run.rule.name}\nChecked at: ${run.checkedAt}\nFolder: ${run.rule.pathToMonitor}\nPattern: ${run.rule.pattern}\nRecursive: ${run.rule.recursive}\n\n" +
+                  (run.error?.let { "Scan failed: $it" }
+                      ?: "${run.issues.size} violation(s)\n" +
+                          run.issues.joinToString("\n") { it.sourceFilePath })
+    }
+    runDetails.text = "Select a run to inspect its details."
+    val history =
+        SplitPane(runList, runDetails).apply { orientation = javafx.geometry.Orientation.VERTICAL }
+    val debug =
+        VBox(8.0, Label("Debug history — latest 100 runs, kept for this session"), history).apply {
+          VBox.setVgrow(history, Priority.ALWAYS)
+        }
+    return TabPane(Tab("Current violations", current), Tab("Debug runs", debug)).apply {
+      tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
+    }
+  }
+
+  private fun setupTray(stage: Stage) {
+    if (!SystemTray.isSupported()) return
+    try {
+      val icon =
+          java.awt.TrayIcon(
+              Toolkit.getDefaultToolkit().getImage(javaClass.getResource("/file-check-white.png")),
+              "File Conventions")
+      icon.isImageAutoSize = true
+      val menu = java.awt.PopupMenu()
+      menu.add(
+          java.awt.MenuItem("Open File Conventions").apply {
+            addActionListener {
+              Platform.runLater {
+                stage.show()
+                stage.toFront()
+              }
+            }
+          })
+      menu.add(
+          java.awt.MenuItem("Quit").apply {
+            addActionListener { Platform.runLater { Platform.exit() } }
+          })
+      icon.popupMenu = menu
+      icon.addActionListener {
+        Platform.runLater {
+          stage.show()
+          stage.toFront()
+        }
+      }
+      SystemTray.getSystemTray().add(icon)
+      tray = icon
+    } catch (e: Exception) {
+      System.err.println("Tray unavailable: ${e.message}")
+    }
+  }
+
+  private fun edit(stage: Stage, old: Rule?) {
+    val dialog = Dialog<ButtonType>()
+    dialog.initOwner(stage)
+    dialog.title = if (old == null) "Add rule" else "Edit rule"
+    dialog.dialogPane.buttonTypes.addAll(ButtonType.OK, ButtonType.CANCEL)
+    val name = TextField(old?.name ?: "")
+    val pattern = TextField(old?.pattern ?: "").apply { promptText = "[a-z0-9_-]+\\.pdf" }
+    val language =
+        ComboBox(FXCollections.observableArrayList(*PatternLanguage.values())).apply {
+          value = old?.patternLanguage ?: PatternLanguage.Regex
+        }
+    val folder = TextField(old?.pathToMonitor?.absolutePath ?: "")
+    val browse =
+        Button("Browse…").apply {
+          setOnAction {
+            DirectoryChooser().showDialog(stage)?.let { folder.text = it.absolutePath }
+          }
+        }
+    val interval = TextField(old?.timeBetweenChecksInMinutes?.toString() ?: "60")
+    val watchChanges =
+        CheckBox("Watch for changes + periodic verification").apply {
+          isSelected = old?.watchChanges ?: true
+        }
+    val delay = TextField(old?.notificationDelaySeconds?.toString() ?: "7")
+    val recursive = CheckBox("Include subfolders").apply { isSelected = old?.recursive ?: false }
+    val enabled = CheckBox("Enabled").apply { isSelected = old?.isEnabled ?: true }
+    val validation =
+        Label().apply {
+          isWrapText = true
+          styleClass.add("error-label")
+        }
+    dialog.dialogPane.content =
+        VBox(
+            8.0,
+            Label("Rule name"),
+            name,
+            Label("Pattern language"),
+            language,
+            Label("Pattern — must match the entire file name, including extension"),
+            pattern,
+            Label("Folder"),
+            HBox(8.0, folder, browse),
+            Label("Check interval (minutes)"),
+            interval,
+            watchChanges,
+            Label("Wait after folder changes (seconds, 0–3600)"),
+            delay,
+            recursive,
+            enabled,
+            validation)
+    dialog.dialogPane.prefWidth = 560.0
+    dialog.dialogPane.lookupButton(ButtonType.OK).addEventFilter(javafx.event.ActionEvent.ACTION) {
+        event ->
+      try {
+        val directory = File(folder.text)
+        require(directory.isDirectory) { "Choose an existing folder." }
+        val rule =
+            Rule(
+                name.text.trim(),
+                pattern.text,
+                language.value,
+                enabled.isSelected,
+                interval.text.toIntOrNull() ?: 0,
+                directory,
+                recursive.isSelected,
+                old?.id ?: java.util.UUID.randomUUID().toString(),
+                watchChanges.isSelected,
+                delay.text.toIntOrNull() ?: -1)
+        val updated = rules.toMutableList()
+        if (old == null) updated.add(rule) else updated[updated.indexOf(old)] = rule
+        if (!commit(updated)) event.consume()
+        else {
+          results.remove(rule.id)
+          renderResults()
+        }
+      } catch (e: Exception) {
+        validation.text = e.message
+        event.consume()
+      }
+    }
+    dialog.showAndWait()
+  }
+
+  private fun commit(updated: List<Rule>): Boolean =
+      try {
+        store.save(updated)
+        rules.setAll(updated)
+        monitor.updateRules(updated)
+        true
+      } catch (e: Exception) {
+        error("Unable to save rules: ${e.message}")
+        false
+      }
+
+  private fun renderResults() {
+    val rule = list.selectionModel.selectedItem
+    val result = rule?.let { results[it.id] }
+    violations.setAll(result?.issues ?: emptyList())
+    val latest = rule?.let { selected -> runs.firstOrNull { it.rule == selected } }
+    summary.text =
+        when {
+          rule == null -> "Select a rule to see its current violations."
+          latest?.error != null ->
+              "Check failed: ${latest.error}. " +
+                  (if (result == null) "No successful check available."
+                  else "Showing last successful check from ${result.checkedAt}.")
+          result == null -> "${rule.name}: not checked yet. Click Check now to scan."
+          else ->
+              "${rule.name}: ${result.issues.size} violation(s) · Last checked ${result.checkedAt}"
+        }
+  }
+
+  private fun error(message: String) {
+    Alert(Alert.AlertType.ERROR, message, ButtonType.OK).showAndWait()
+  }
+
+  override fun stop() {
+    if (::monitor.isInitialized) monitor.close()
+    tray?.let { SystemTray.getSystemTray().remove(it) }
+    lock?.release()
+    channel?.close()
   }
 }

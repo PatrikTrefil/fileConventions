@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.trefilsoftware"
-version = "1.0.0"
+version = providers.gradleProperty("releaseVersion").getOrElse("1.0.0")
 
 repositories {
     mavenCentral()
@@ -16,11 +16,8 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
-    implementation("com.dustinredmond.fxtrayicon:FXTrayIcon:4.2.0")
-    implementation("org.hibernate.orm:hibernate-core:6.5.2.Final")
-    implementation("org.hsqldb:hsqldb:2.7.4")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     implementation("net.harawata:appdirs:1.2.2")
-    implementation("commons-io:commons-io:2.16.1")
 }
 
 tasks.test {
@@ -37,12 +34,14 @@ application {
 }
 
 javafx {
+    version = "17.0.13"
     modules("javafx.controls", "javafx.fxml")
 }
 
 runtime {
     jpackage {
         val currentOs = org.gradle.internal.os.OperatingSystem.current()
+        installerType = if (currentOs.isWindows) "exe" else if (currentOs.isMacOsX) "dmg" else "deb"
         val imgType = if (currentOs.isWindows) "ico" else if (currentOs.isMacOsX) "icns" else "png"
         imageOptions.addAll(arrayOf("--icon", "src/main/resources/file-check-white.$imgType"))
 
