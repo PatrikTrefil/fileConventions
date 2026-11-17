@@ -26,7 +26,7 @@ Keep monthly reports predictable (`report-2026.pdf`), invoices easy to find (`in
 
 The welcome panel gives you a quick introduction. **How it works** is always available if you need a reminder. Advanced monitoring options stay out of the way until you need them.
 
-On Windows, select **Run File Conventions** on the installer's final page to launch the app when you click **Finish**.
+On Windows, **Run File Conventions** is checked by default on the installer's final page. Click **Finish** to launch the app, or uncheck it to launch later.
 
 Otherwise, launch it from your application menu or shortcut. Open it again after signing in: installation does not enable automatic startup.
 

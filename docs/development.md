@@ -22,7 +22,7 @@ Native installers are written to `build/jpackage/`. Build on the target operatin
 
 For an isolated UI preview, launch the shadow JAR with `java -DfileConventions.dataDir=build/preview-settings -jar build/libs/fileConventions-1.0.0-all.jar` after `shadowJar` (adjust the version if needed). This keeps preview rules and the instance lock separate from your installed app. Omit the property for normal OS user-data storage.
 
-The Windows installer's final page includes an unchecked **Run File Conventions** checkbox. Selecting it launches the app when **Finish** is clicked after installation. Silent installs, repair, and uninstall do not launch it. The build extends the running JDK 17's WiX template with `packaging/windows/launch-application.xml`; use JDK 17 to run Gradle as well as compile the app. Check the final-page checkbox and launch behavior interactively when accepting a Windows release.
+The Windows installer's final page includes a **Run File Conventions** checkbox, checked by default. Leaving it checked launches the app when **Finish** is clicked after installation; uncheck it to skip launching. Silent installs, repair, and uninstall do not launch it. The build extends the running JDK 17's WiX template with `packaging/windows/launch-application.xml`; use JDK 17 to run Gradle as well as compile the app. Check the default selection, opt-out, and launch behavior interactively when accepting a Windows release.
 
 ## Publish a release
 
